@@ -1,10 +1,103 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-TW">
 <head>
-    <meta charset="UTF-8">
-    <title>Title</title>
+  <meta charset="UTF-8">
+  <title>即時變化示範</title>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 </head>
-<body>
+<body class="bg-gray-900 text-white">
+
+<div id="app">
+  <div class="flex space-x-4 p-4 bg-gray-800">
+    <!-- 靜態分類按鈕 -->
+    <button class="px-6 py-3 text-lg rounded-full bg-white text-black font-semibold" @click="filterCategory('三明治')">三明治</button>
+    <button class="px-6 py-3 text-lg rounded-full bg-white text-black font-semibold" @click="filterCategory('吐司')">吐司</button>
+    <button class="px-6 py-3 text-lg rounded-full bg-white text-black font-semibold" @click="filterCategory('貝果')">貝果</button>
+    <button class="px-6 py-3 text-lg rounded-full bg-white text-black font-semibold" @click="filterCategory('甜品')">甜品</button>
+    <button class="px-6 py-3 text-lg rounded-full bg-white text-black font-semibold" @click="filterCategory('飲品')">飲品</button>
+    <button class="px-6 py-3 text-lg rounded-full bg-white text-black font-semibold" @click="filterCategory('套餐')">套餐</button>
+  </div>
+
+  <div class="grid grid-cols-2 gap-4 p-4">
+    <div v-for="item in filteredItems" :key="item.id" class="bg-white rounded-lg p-4 text-black flex flex-col items-center">
+      <img src="https://via.placeholder.com/100" class="mb-2" />
+      <div class="font-bold">{{ item.name }}</div>
+      <div class="font-bold">$ {{ item.price }}</div>
+
+      <div class="flex items-center mt-2 space-x-2">
+        <button @click="decrease(item)" :disabled="item.count === 0" class="bg-gray-300 px-3 py-1 rounded-full disabled:opacity-50">
+          -
+        </button>
+        <span class="text-xl">{{ item.count }}</span>
+        <button @click="increase(item)" class="bg-gray-300 px-3 py-1 rounded-full">
+          +
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="fixed bottom-0 left-0 right-0 bg-white text-black flex justify-between items-center px-6 py-4 shadow-2xl text-lg">
+    <div class="flex items-center">
+      🛒 結帳
+    </div>
+    <div>已選擇 {{ totalCount }} 項商品・共 {{ totalPrice }} 元</div>
+  </div>
+</div>
+
+<script>
+const { createApp } = Vue;
+
+createApp({
+  data() {
+    return {
+      items: [], // 用來存儲從 API 獲取的商品資料
+      category: '三明治', // 默認分類
+    };
+  },
+  computed: {
+    filteredItems() {
+      console.log("目前的分類：", this.category); // 用於調試
+      return this.items.filter(item => item.category === this.category);
+    },
+    totalCount() {
+      return this.items.reduce((sum, item) => sum + item.count, 0);
+    },
+    totalPrice() {
+      return this.items.reduce((sum, item) => sum + item.count * parseFloat(item.price), 0);
+    }
+  },
+  methods: {
+    async fetchMenuItems() {
+      try {
+        const response = await axios.get('http://127.0.0.1:8000/api/menu/');
+        console.log('獲取的商品資料：', response.data); // 用於調試
+        // 為每個商品添加 count 屬性
+        this.items = response.data.map(item => ({
+          ...item,
+          count: 0
+        }));
+      } catch (error) {
+        console.error('Error fetching menu items:', error);
+      }
+    },
+    increase(item) {
+      item.count++;
+    },
+    decrease(item) {
+      if (item.count > 0) item.count--;
+    },
+    filterCategory(category) {
+      console.log("切換分類為：", category); // 用於調試
+      this.category = category; // 更新當前分類
+    }
+  },
+  mounted() {
+    this.fetchMenuItems(); // 頁面加載後，獲取商品資料
+  }
+}).mount('#app');
+</script>
 
 </body>
 </html>

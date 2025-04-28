@@ -17,8 +17,16 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path
 from Website import views
+from django.conf import settings
+from django.conf.urls.static import static
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('page1.html', views.page1, name='page1'),
+    path('', views.page1, name='home'),
+    path('api/menu/', views.MenuItemListAPIView.as_view(), name='menu-item-list'),  # API 列表，獲取所有餐點
+    path('api/menu/<int:id>/', views.MenuItemDetailAPIView.as_view(), name='menu-item-detail'),  # API 詳情，根據 ID 獲取單個餐點
+    path('page2_menu/', views.page2_menu, name='page2_menu'),  # 這裡是對應的路徑
 ]
+
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

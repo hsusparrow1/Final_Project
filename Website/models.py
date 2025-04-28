@@ -43,6 +43,11 @@ class Order(models.Model):
     def __str__(self):
         return str(self.order_id)
 
+    # 在 Order 模型添加
+    def update_total(self):
+        self.total_price = sum(item.price for item in self.items.all())
+        self.save()
+
 #  訂單細項（每筆餐點）
 class OrderItem(models.Model):
     id = models.AutoField(primary_key=True)  # 自動流水號
@@ -53,4 +58,9 @@ class OrderItem(models.Model):
 
     def __str__(self):
         return f"{self.menu_item.name} x {self.quantity}"
+
+    def save(self, *args, **kwargs):
+        self.price = self.menu_item.price * self.quantity
+        super().save(*args, **kwargs)
+
 
