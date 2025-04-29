@@ -112,8 +112,17 @@
 
                 {/* 底部結帳列 */}
                 <div
-                    className="fixed bottom-0 left-0 right-0 bg-white text-black flex justify-between items-center px-6 py-4 shadow-2xl text-lg">
-                    <div className="flex items-center">
+                    className="fixed bottom-0 left-0 right-0 bg-white text-black flex justify-between items-center px-6 py-4 shadow-2xl text-lg"
+                >
+                    <div
+                        className="flex items-center bg-gray-200 px-4 py-2 rounded-lg cursor-pointer hover:bg-gray-300"
+                        onClick={() => {
+                            const selectedItems = items.filter(item => item.count > 0);
+                            axios.post('/api/save-cart/', { items: selectedItems }).then(() => {
+                                window.location.href = '/page3_shopping_cart/';
+                            });
+                        }}
+                    >
                         🛒 結帳
                     </div>
                     <div>已選擇 {totalCount} 項商品・共 {totalPrice} 元</div>

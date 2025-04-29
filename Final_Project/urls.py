@@ -26,6 +26,10 @@ urlpatterns = [
     path('api/menu/', views.MenuItemListAPIView.as_view(), name='menu-item-list'),  # API 列表，獲取所有餐點
     path('api/menu/<int:id>/', views.MenuItemDetailAPIView.as_view(), name='menu-item-detail'),  # API 詳情，根據 ID 獲取單個餐點
     path('page2_menu/', views.page2_menu, name='page2_menu'),  # 這裡是對應的路徑
+    path('page3_shopping_cart/', views.page3_shopping_cart, name='page3_shopping_cart'),  # 新增結帳頁面路由
+    path('api/save-cart/', views.save_cart, name='save_cart'),
+    path('api/get-cart/', views.get_cart, name='get_cart'),
+    path('api/menu/<int:id>/', views.MenuItemDetailAPIView.as_view(), name='menu-item-detail'),
 ]
 
 if settings.DEBUG:
