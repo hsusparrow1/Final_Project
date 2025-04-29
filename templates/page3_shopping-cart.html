@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>結帳畫面</title>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-900 text-white">
+
+<div id="root"></div>
+
+<!-- 引入 React / ReactDOM -->
+<script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<!-- React 程式 -->
+<script type="text/babel">
+    const { useState, useEffect } = React;
+
+    function ShoppingCart() {
+        const [cartItems, setCartItems] = useState([]); // 初始值設為空陣列
+
+        useEffect(() => {
+            axios.get('/api/get-cart/').then(response => {
+                setCartItems(response.data.items);
+            });
+        }, []);
+
+        const totalCount = cartItems.reduce((sum, item) => sum + item.count, 0);
+        const totalPrice = cartItems.reduce((sum, item) => sum + item.count * item.price, 0);
+
+        const handleSubmitOrder = () => {
+            alert('訂單已送出！');
+            // 在這裡可以調用後端 API 提交訂單
+        };
+
+        return (
+            <div className="p-4">
+                <h1 className="text-2xl font-bold mb-4">結帳畫面</h1>
+                <div className="space-y-4">
+                    {cartItems.map(item => (
+                        <div key={item.id} className="flex justify-between items-center bg-gray-800 p-4 rounded-lg">
+                            <div className="text-left flex-1">{item.name}</div> {/* 名稱置左 */}
+                            <div className="text-center flex-1">$ {item.price * item.count}</div> {/* 價格置中 */}
+                            <div className="text-right flex-1">{item.count} 項</div> {/* 數量置右 */}
+                        </div>
+                    ))}
+                </div>
+                <div className="mt-6 text-lg font-bold">
+                    總共 {totalCount} 項商品 ・ 共 $ {totalPrice} 元
+                </div>
+                <button
+                    onClick={handleSubmitOrder}
+                    className="mt-4 w-full bg-green-500 text-white py-2 rounded-lg font-bold"
+                >
+                    確認送出訂單
+                </button>
+            </div>
+        );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<ShoppingCart />);
+</script>
+
+</body>
+</html>
