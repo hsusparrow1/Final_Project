@@ -1,67 +1,62 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-Hant">
 <head>
-    <meta charset="UTF-8">
-    <title>選擇內用外帶</title>
-    <!-- 引入 Element Plus 樣式 -->
-    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
-    <!-- 引入 Tailwind (如果有用) -->
-    <script src="https://cdn.tailwindcss.com"></script>
+  <meta charset="UTF-8">
+  <title>選擇內用外帶</title>
+  <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+  <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body>
-
 <div id="app" class="flex items-center justify-center h-screen bg-gray-100">
-    <div class="flex flex-col md:flex-row items-center space-y-8 md:space-x-10 md:space-y-0">
-        <!-- 內用 -->
-        <div class="flex flex-col items-center cursor-pointer hover:scale-110 transition-transform text-center"
-             @click="select('內用')">
-            <el-icon size="400" class="md:text-6xl text-4xl">
-                <knife-fork/>
-            </el-icon>
-            <p class="mt-2 text-6xl md:text-10xl font-bold">內用</p>
-        </div>
-
-        <!-- 中間直線 -->
-        <div class="w-3 h-96 bg-gray-400 md:h-130"></div>
-
-        <!-- 外帶 -->
-        <div class="flex flex-col items-center cursor-pointer hover:scale-110 transition-transform text-center"
-             @click="select('外帶')">
-            <el-icon size="400" class="md:text-6xl text-4xl">
-                <handbag/>
-            </el-icon>
-            <p class="mt-2 text-6xl md:text-10xl font-bold">外帶</p>
-        </div>
+  <div class="flex flex-col md:flex-row items-center space-y-8 md:space-x-10 md:space-y-0">
+    <!-- 內用 -->
+    <div class="flex flex-col items-center cursor-pointer hover:scale-110 transition-transform text-center"
+         onclick="selectOrderType('內用')">
+      <el-icon size="400" class="md:text-6xl text-4xl">
+        <knife-fork/>
+      </el-icon>
+      <p class="mt-2 text-6xl md:text-10xl font-bold">內用</p>
     </div>
+
+    <!-- 中間直線 -->
+    <div class="w-3 h-96 bg-gray-400 md:h-130"></div>
+
+    <!-- 外帶 -->
+    <div class="flex flex-col items-center cursor-pointer hover:scale-110 transition-transform text-center"
+         onclick="selectOrderType('外帶')">
+      <el-icon size="400" class="md:text-6xl text-4xl">
+        <handbag/>
+      </el-icon>
+      <p class="mt-2 text-6xl md:text-10xl font-bold">外帶</p>
+    </div>
+  </div>
 </div>
 
-<!-- 引入 Vue3 -->
+<!-- Vue3 -->
 <script src="https://unpkg.com/vue@3"></script>
-<!-- 引入 Element Plus -->
+<!-- Element Plus -->
 <script src="https://unpkg.com/element-plus"></script>
-<!-- 引入 Icon -->
 <script src="https://unpkg.com/@element-plus/icons-vue"></script>
 
 <script>
-    const {createApp} = Vue
-    const {ElIcon} = ElementPlus
-    const {KnifeFork, Handbag} = ElementPlusIconsVue
+  // 儲存選擇並跳轉
+  function selectOrderType(type) {
+    localStorage.setItem('orderType', type); // 儲存選擇到 localStorage
+    window.location.href = '/page2_menu/'; // 導向下一頁（HTML版）
+  }
 
-    createApp({
-        components: {
-            ElIcon,
-            KnifeFork,
-            Handbag
-        },
-        methods: {
-            select(type) {
-                console.log('Selected type:', type);  // 用來檢查選擇的類型
-                window.location.href = '/page2_menu/';
-                // 這裡可以改成跳轉、或傳送選擇給後端
-            }
-        }
-    }).mount('#app')
+  // 初始化 Vue (只用來渲染 icon)
+  const { createApp } = Vue
+  const { ElIcon } = ElementPlus
+  const { KnifeFork, Handbag } = ElementPlusIconsVue
+
+  createApp({
+    components: {
+      ElIcon,
+      KnifeFork,
+      Handbag
+    }
+  }).mount('#app')
 </script>
-
 </body>
 </html>

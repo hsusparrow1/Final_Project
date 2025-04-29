@@ -30,6 +30,8 @@ urlpatterns = [
     path('api/save-cart/', views.save_cart, name='save_cart'),
     path('api/get-cart/', views.get_cart, name='get_cart'),
     path('api/menu/<int:id>/', views.MenuItemDetailAPIView.as_view(), name='menu-item-detail'),
+# ... 其他路由 ...
+    path('api/submit-order/', views.submit_order, name='submit_order'),
 ]
 
 if settings.DEBUG:
