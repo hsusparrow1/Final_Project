@@ -1,5 +1,7 @@
-from django.shortcuts import render
+from django.shortcuts import render, get_object_or_404
 from rest_framework import generics
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
 from .models import MenuItem, Order, OrderItem
 from .serializers import MenuItemSerializer
 from django.http import JsonResponse
@@ -16,13 +18,15 @@ def page2_menu(request):
 def page3_shopping_cart(request):
     return render(request, 'page3_shopping-cart.html')  # 渲染 page3_shopping-cart.html 頁面
 
+def admin_dashboard(request):
+    return render(request, 'admin_dashboard.html')
+
 @csrf_exempt
 def save_cart(request):
     if request.method == 'POST':
         data = json.loads(request.body)
         request.session['cart_items'] = data['items']
         return JsonResponse({'message': 'Cart saved successfully!'})
-
 
 @csrf_exempt
 def submit_order(request):
@@ -62,9 +66,56 @@ def submit_order(request):
         except Exception as e:
             return JsonResponse({'success': False, 'error': str(e)}, status=400)
     return JsonResponse({'error': 'Invalid request method'}, status=405)
+
 def get_cart(request):
     cart_items = request.session.get('cart_items', [])
     return JsonResponse({'items': cart_items})
+
+@csrf_exempt
+@api_view(['GET'])
+def get_orders(request):
+    """取得所有訂單"""
+    orders = Order.objects.all()
+    data = [
+        {
+            'order_id': str(order.order_id),
+            'order_type': order.order_type,
+            'gmail': order.gmail,
+            'total_price': order.total_price,
+            'created_at': order.created_at,
+            'status': order.status,  # 確保返回 status
+            'items': [
+                {
+                    'name': item.menu_item.name,
+                    'quantity': item.quantity,
+                    'price': item.price
+                }
+                for item in order.items.all()
+            ]
+        }
+        for order in orders
+    ]
+    return Response(data)
+
+@api_view(['POST'])
+def update_order_status(request, order_id):
+    """更新訂單狀態"""
+    order = get_object_or_404(Order, order_id=order_id)
+    status = request.data.get('status')
+    if status in ['已送單', '製作中', '完成']:
+        order.status = status
+        order.save()
+        return Response({'success': True, 'message': '訂單狀態已更新'})
+    return Response({'success': False, 'message': '無效的狀態值'}, status=400)
+
+@api_view(['POST'])
+def update_menu_item_status(request, item_id):
+    """更新商品狀態（例如已售完）"""
+    menu_item = get_object_or_404(MenuItem, id=item_id)
+    sold_out = request.data.get('sold_out', False)
+    menu_item.sold_out = sold_out
+    menu_item.save()
+    return Response({'success': True, 'message': '商品狀態已更新'})
 
 # 新增的 API 視圖
 class MenuItemListAPIView(generics.ListAPIView):

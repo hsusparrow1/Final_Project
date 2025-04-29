@@ -19,6 +19,7 @@ from django.urls import path
 from Website import views
 from django.conf import settings
 from django.conf.urls.static import static
+from Website.views import get_orders, update_order_status, update_menu_item_status
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -32,6 +33,13 @@ urlpatterns = [
     path('api/menu/<int:id>/', views.MenuItemDetailAPIView.as_view(), name='menu-item-detail'),
 # ... 其他路由 ...
     path('api/submit-order/', views.submit_order, name='submit_order'),
+    path('api/orders/', get_orders, name='get_orders'),
+    path('api/orders/<uuid:order_id>/status/', update_order_status, name='update_order_status'),
+    path('api/menu/<int:item_id>/status/', update_menu_item_status, name='update_menu_item_status'),
+]
+
+urlpatterns += [
+    path('admin_dashboard/', views.admin_dashboard, name='admin_dashboard'),
 ]
 
 if settings.DEBUG:

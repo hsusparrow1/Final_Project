@@ -20,6 +20,7 @@ class MenuItem(models.Model):
     description = models.TextField(blank=True)  # 餐點描述（可以留空）
     price = models.DecimalField(max_digits=6, decimal_places=2)  # 價格（例如 199.00）
     image = models.ImageField(upload_to='menu_images/', blank=True, null=True)  # 餐點圖片（可以留空）
+    sold_out = models.BooleanField(default=False)  # 新增欄位：是否已售完
 
     def __str__(self):
         return self.name
@@ -31,11 +32,18 @@ class Order(models.Model):
         ('外帶', '外帶'),
     ]
 
+    STATUS_CHOICES = [
+        ('已送單', '已送單'),
+        ('製作中', '製作中'),
+        ('完成', '完成'),
+    ]
+
     order_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)  # 隨機訂單編號
     order_type = models.CharField(max_length=5, choices=ORDER_TYPE_CHOICES)  # 內用/外帶
     gmail = models.EmailField(blank=True, null=True)  # 顧客 Gmail，可空白
     total_price = models.DecimalField(max_digits=8, decimal_places=2, default=0.00)  # 訂單總價
     created_at = models.DateTimeField(auto_now_add=True)  # 建立時間（下單時間）
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='已送單')  # 新增欄位
 
     class Meta:
         ordering = ['-created_at']  # 預設按照下單時間「新到舊」排列
