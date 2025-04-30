@@ -40,6 +40,7 @@ urlpatterns = [
 
 urlpatterns += [
     path('admin_dashboard/', views.admin_dashboard, name='admin_dashboard'),
+    path('page4_order_confirmation/', views.page4_order_confirmation, name='page4_order_confirmation'),
 ]
 
 if settings.DEBUG:

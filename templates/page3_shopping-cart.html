@@ -40,9 +40,9 @@
                 });
 
                 if (response.data.success) {
-                    alert(`訂單已送出！訂單編號: ${response.data.order_id}`);
+                    const orderId = response.data.order_id;
                     localStorage.removeItem('orderType');
-                    window.location.href = '/';  // 導回首頁或感謝頁
+                    window.location.href = `/page4_order_confirmation/?order_id=${orderId}`;  // 跳轉到第四頁
                 } else {
                     alert(`提交訂單失敗: ${response.data.error}`);
                 }

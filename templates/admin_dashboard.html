@@ -87,6 +87,7 @@
         const currentOrdersDiv = document.getElementById('current-orders');
         currentOrdersDiv.innerHTML = currentOrders.map(order => `
             <div class="bg-gray-800 p-4 rounded-lg">
+                <p><strong>流水號：</strong>${order.sequence_number}</p>
                 <p><strong>訂單編號：</strong>${order.order_id}</p>
                 <p><strong>類型：</strong>${order.order_type}</p>
                 <p><strong>總價：</strong>${order.total_price}</p>
@@ -107,6 +108,7 @@
         const completedOrdersDiv = document.getElementById('completed-orders');
         completedOrdersDiv.innerHTML = completedOrders.map(order => `
             <div class="bg-gray-800 p-4 rounded-lg">
+                <p><strong>流水號：</strong>${order.sequence_number}</p>
                 <p><strong>訂單編號：</strong>${order.order_id}</p>
                 <p><strong>類型：</strong>${order.order_type}</p>
                 <p><strong>總價：</strong>${order.total_price}</p>

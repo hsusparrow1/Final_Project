@@ -39,17 +39,24 @@ class Order(models.Model):
     ]
 
     order_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)  # 隨機訂單編號
+    sequence_number = models.PositiveIntegerField(default=0, editable=False)  # 流水號
     order_type = models.CharField(max_length=5, choices=ORDER_TYPE_CHOICES)  # 內用/外帶
     gmail = models.EmailField(blank=True, null=True)  # 顧客 Gmail，可空白
     total_price = models.DecimalField(max_digits=8, decimal_places=2, default=0.00)  # 訂單總價
     created_at = models.DateTimeField(auto_now_add=True)  # 建立時間（下單時間）
-    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='已送單')  # 新增欄位
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='已送單')  # 訂單狀態
 
     class Meta:
-        ordering = ['-created_at']  # 預設按照下單時間「新到舊」排列
+        ordering = ['created_at']  # 按照下單時間「舊到新」排列
+
+    def save(self, *args, **kwargs):
+        if not self.sequence_number:  # 如果流水號尚未生成
+            last_order = Order.objects.order_by('-sequence_number').first()
+            self.sequence_number = (last_order.sequence_number + 1) if last_order else 1
+        super().save(*args, **kwargs)
 
     def __str__(self):
-        return str(self.order_id)
+        return f"訂單 {self.sequence_number}"
 
     # 在 Order 模型添加
     def update_total(self):

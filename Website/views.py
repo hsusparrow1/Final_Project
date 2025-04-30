@@ -79,6 +79,7 @@ def get_orders(request):
     data = [
         {
             'order_id': str(order.order_id),
+            'sequence_number': order.sequence_number,  # 新增流水號
             'order_type': order.order_type,
             'gmail': order.gmail,
             'total_price': order.total_price,
@@ -134,4 +135,9 @@ class MenuItemDetailAPIView(generics.RetrieveAPIView):
     queryset = MenuItem.objects.all()
     serializer_class = MenuItemSerializer
     lookup_field = 'id'
+
+def page4_order_confirmation(request):
+    order_id = request.GET.get('order_id')  # 從 URL 參數中獲取訂單 ID
+    order = get_object_or_404(Order, order_id=order_id)
+    return render(request, 'page4_order_confirmation.html', {'order': order})
 
