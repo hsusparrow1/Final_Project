@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>即時變化示範 (React版)</title>
+    <title>菜單選擇</title>
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 </head>
@@ -28,10 +28,21 @@
                 try {
                     const response = await axios.get('/api/menu/');
                     console.log('獲取的商品資料：', response.data);
-                    const itemsWithCount = response.data.map(item => ({
-                        ...item,
-                        count: 0
-                    }));
+
+                    // 從 sessionStorage 獲取購物車數據
+                    const savedCart = JSON.parse(sessionStorage.getItem('cartItems')) || [];
+                    const savedCartResponse = await axios.get('/api/get-cart/');
+                    const serverCart = savedCartResponse.data.items || [];
+
+                    const itemsWithCount = response.data.map(item => {
+                        // 合併本地和伺服器的購物車數據
+                        const savedItem = [...savedCart, ...serverCart].find(cartItem => cartItem.id === item.id);
+                        return {
+                            ...item,
+                            count: savedItem ? savedItem.count : 0
+                        };
+                    });
+
                     setItems(itemsWithCount);
                 } catch (error) {
                     console.error('Error fetching menu items:', error);
@@ -43,21 +54,30 @@
 
         const filteredItems = items.filter(item => item.category === category);
 
+        const updateCart = (updatedItems) => {
+            setItems(updatedItems);
+            // 只保存 count > 0 的商品
+            const cartToSave = updatedItems.filter(item => item.count > 0);
+            sessionStorage.setItem('cartItems', JSON.stringify(cartToSave));
+            // 同時同步到後端
+            axios.post('/api/save-cart/', { items: cartToSave });
+        };
+
         const increase = (itemId, soldOut) => {
             if (soldOut) {
                 alert('此商品已售完，無法加入購物車！');
                 return;
             }
-            setItems(prevItems =>
-                prevItems.map(item =>
+            updateCart(
+                items.map(item =>
                     item.id === itemId ? { ...item, count: item.count + 1 } : item
                 )
             );
         };
 
         const decrease = (itemId) => {
-            setItems(prevItems =>
-                prevItems.map(item =>
+            updateCart(
+                items.map(item =>
                     item.id === itemId && item.count > 0
                         ? { ...item, count: item.count - 1 }
                         : item
@@ -70,12 +90,14 @@
 
         return (
             <div>
-                <div className="flex space-x-4 p-4 bg-gray-800">
+                <div className="flex space-x-4 p-4 bg-gray-800 overflow-x-auto">
                     {/* 分類按鈕 */}
                     {['三明治', '吐司', '貝果', '可頌', '沙拉', '甜品', '飲品', '套餐'].map(cat => (
                         <button
                             key={cat}
-                            className="px-6 py-3 text-lg rounded-full bg-white text-black font-semibold"
+                            className={`px-6 py-3 text-lg rounded-full font-semibold whitespace-nowrap ${
+                                category === cat ? 'bg-white text-black' : 'bg-gray-700 text-white'
+                            }`}
                             onClick={() => setCategory(cat)}
                         >
                             {cat}
@@ -84,12 +106,18 @@
                 </div>
 
                 {/* 商品區域 */}
-                <div className="grid grid-cols-2 gap-4 p-4">
+                <div className="grid grid-cols-2 gap-4 p-4 pb-24">
                     {filteredItems.map(item => (
                         <div key={item.id} className="bg-white rounded-lg p-4 text-black flex flex-col items-center">
-                            <img src="https://via.placeholder.com/100" alt="商品圖片" className="mb-2"/>
-                            <div className="font-bold">{item.name}</div>
-                            <div className="text-gray-600 text-sm mb-1">{item.description}</div>
+                            {item.image ? (
+                                <img src={item.image} alt={item.name} className="w-full h-32 object-cover mb-2 rounded"/>
+                            ) : (
+                                <div className="w-full h-32 bg-gray-200 mb-2 rounded flex items-center justify-center">
+                                    <span className="text-gray-500">無圖片</span>
+                                </div>
+                            )}
+                            <div className="font-bold text-center">{item.name}</div>
+                            <div className="text-gray-600 text-sm mb-1 text-center">{item.description}</div>
                             <div className="font-bold">$ {item.price}</div>
 
                             {/* 顯示已售完標籤 */}
@@ -121,28 +149,24 @@
                 </div>
 
                 {/* 底部結帳列 */}
-                <div
-                    className="fixed bottom-0 left-0 right-0 bg-white text-black flex justify-between items-center px-6 py-4 shadow-2xl text-lg"
-                >
-                    <div
-                        className="flex items-center bg-gray-200 px-4 py-2 rounded-lg cursor-pointer hover:bg-gray-300"
-                        onClick={() => {
-                            const selectedItems = items.filter(item => item.count > 0);
-                            axios.post('/api/save-cart/', { items: selectedItems }).then(() => {
+                {totalCount > 0 && (
+                    <div className="fixed bottom-0 left-0 right-0 bg-white text-black flex justify-between items-center px-6 py-4 shadow-2xl text-lg">
+                        <div
+                            className="flex items-center bg-green-500 text-white px-6 py-3 rounded-lg cursor-pointer hover:bg-green-600"
+                            onClick={() => {
                                 window.location.href = '/page3_shopping_cart/';
-                            });
-                        }}
-                    >
-                        🛒 結帳
+                            }}
+                        >
+                            🛒 前往結帳 ({totalCount})
+                        </div>
+                        <div className="font-bold">總計: $ {totalPrice}</div>
                     </div>
-                    <div>已選擇 {totalCount} 項商品・共 {totalPrice} 元</div>
-                </div>
+                )}
             </div>
         );
     }
 
     ReactDOM.createRoot(document.getElementById('root')).render(<App />);
 </script>
-
 </body>
 </html>

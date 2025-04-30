@@ -2,7 +2,7 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>結帳畫面</title>
+    <title>購物車</title>
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 </head>
@@ -20,18 +20,100 @@
     const {useState, useEffect} = React;
 
     function ShoppingCart() {
-        const [cartItems, setCartItems] = useState([]); // 初始值設為空陣列
+        const [cartItems, setCartItems] = useState([]);
+        const [isSyncing, setIsSyncing] = useState(true);
+
+        // 同步購物車數據
+        const syncCartData = async () => {
+            try {
+                // 同步後端數據
+                const serverResponse = await axios.get('/api/get-cart/');
+                const serverCart = serverResponse.data.items || [];
+
+                // 合併本地和伺服器數據
+                const mergedCart = serverCart.reduce((acc, serverItem) => {
+                    const existingItem = acc.find(i => i.id === serverItem.id);
+                    return existingItem
+                        ? acc.map(item =>
+                            item.id === serverItem.id
+                                ? {...item, count: Math.max(item.count, serverItem.count)}
+                                : item
+                        )
+                        : [...acc, serverItem];
+                }, JSON.parse(sessionStorage.getItem('cartItems')) || []);
+
+                // 過濾有效項目並排序
+                const validCart = mergedCart
+                    .filter(item => item.count > 0)
+                    .sort((a, b) => a.id - b.id);
+
+                setCartItems(validCart);
+                sessionStorage.setItem('cartItems', JSON.stringify(validCart));
+                await axios.post('/api/save-cart/', {items: validCart});
+            } catch (error) {
+                console.error('數據同步失敗:', error);
+            } finally {
+                setIsSyncing(false);
+            }
+        };
 
         useEffect(() => {
-            axios.get('/api/get-cart/').then(response => {
-                setCartItems(response.data.items);
-            });
+            const handleBeforeUnload = async () => {
+                // 在頁面卸載前強制同步
+                await axios.post('/api/save-cart/', {items: cartItems});
+                sessionStorage.setItem('cartItems', JSON.stringify(cartItems));
+            };
+
+            window.addEventListener('beforeunload', handleBeforeUnload);
+            syncCartData();
+
+            return () => {
+                window.removeEventListener('beforeunload', handleBeforeUnload);
+            };
         }, []);
 
-        const totalCount = cartItems.reduce((sum, item) => sum + item.count, 0);
-        const totalPrice = cartItems.reduce((sum, item) => sum + item.count * item.price, 0);
+        // 更新商品數量
+        const updateItemCount = async (itemId, newCount) => {
+            if (newCount < 1) return;
 
+            const updatedItems = cartItems
+                .map(item => item.id === itemId ? {...item, count: newCount} : item)
+                .filter(item => item.count > 0);
+
+            setCartItems(updatedItems);
+
+            // 立即更新本地存儲
+            sessionStorage.setItem('cartItems', JSON.stringify(updatedItems));
+
+            // 異步更新後端
+            axios.post('/api/save-cart/', {items: updatedItems});
+        };
+
+        // 刪除商品
+        const removeItem = async (itemId) => {
+            const updatedItems = cartItems.filter(item => item.id !== itemId);
+            setCartItems(updatedItems);
+
+            sessionStorage.setItem('cartItems', JSON.stringify(updatedItems));
+            await axios.post('/api/save-cart/', {items: updatedItems});
+        };
+
+        // 處理返回按鈕
+        const handleBackToMenu = async () => {
+            // 顯示加載狀態
+            setIsSyncing(true);
+
+            // 確保數據完全同步
+            await axios.post('/api/save-cart/', {items: cartItems});
+            sessionStorage.setItem('returningFromCart', 'true');
+
+            // 導向頁面
+            window.location.href = '/page2_menu/';
+        };
+
+        // 訂單提交處理
         const handleSubmitOrder = async () => {
+            setIsSyncing(true);
             try {
                 const orderType = localStorage.getItem('orderType');
                 const response = await axios.post('/api/submit-order/', {
@@ -40,39 +122,112 @@
                 });
 
                 if (response.data.success) {
-                    const orderId = response.data.order_id;
+                    // 清除所有購物車數據
                     localStorage.removeItem('orderType');
-                    window.location.href = `/page4_order_confirmation/?order_id=${orderId}`;  // 跳轉到第四頁
-                } else {
-                    alert(`提交訂單失敗: ${response.data.error}`);
+                    sessionStorage.removeItem('cartItems');
+                    await axios.post('/api/save-cart/', {items: []});
+                    window.location.href = `/page4_order_confirmation/?order_id=${response.data.order_id}`;
                 }
-            } catch (error) {
-                console.error('提交訂單失敗：', error);
-                alert('提交訂單失敗，請稍後再試。');
+            } finally {
+                setIsSyncing(false);
             }
         };
 
+        const totalCount = cartItems.reduce((sum, item) => sum + item.count, 0);
+        const totalPrice = cartItems.reduce((sum, item) => sum + (item.price * item.count), 0);
+
         return (
-            <div className="p-4">
-                <h1 className="text-2xl font-bold mb-4">結帳畫面</h1>
-                <div className="space-y-4">
-                    {cartItems.map(item => (
-                        <div key={item.id} className="flex justify-between items-center bg-gray-800 p-4 rounded-lg">
-                            <div className="text-left flex-1">{item.name}</div>
-                            <div className="text-center flex-1">$ {item.price * item.count}</div>
-                            <div className="text-right flex-1">{item.count} 項</div>
+            <div className="p-4 pb-32 relative">
+                {/* 同步遮罩 */}
+                {isSyncing && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                        <div className="text-xl font-bold animate-pulse">數據同步中...</div>
+                    </div>
+                )}
+
+                <h1 className="text-3xl font-bold mb-6 border-b border-gray-700 pb-4">購物車明細</h1>
+
+                {cartItems.length === 0 ? (
+                    <div className="text-center py-8 space-y-4">
+                        <p className="text-xl">🛒 您的購物車是空的</p>
+                        <button
+                            onClick={handleBackToMenu}
+                            className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg font-bold text-lg"
+                        >
+                            返回菜單開始選購
+                        </button>
+                    </div>
+                ) : (
+                    <>
+                        <div className="space-y-4 mb-8">
+                            {cartItems.map(item => (
+                                <div key={item.id} className="bg-gray-800 p-4 rounded-lg animate-fade-in">
+                                    <div className="flex justify-between items-start mb-3">
+                                        <div>
+                                            <h3 className="text-xl font-semibold">{item.name}</h3>
+                                            <p className="text-gray-400 text-sm">單價: ${item.price}</p>
+                                        </div>
+                                        <button
+                                            onClick={() => removeItem(item.id)}
+                                            className="text-red-400 hover:text-red-300 text-2xl px-2"
+                                            title="移除商品"
+                                        >
+                                            &times;
+                                        </button>
+                                    </div>
+
+                                    <div className="flex justify-between items-center">
+                                        <div className="flex items-center space-x-3">
+                                            <button
+                                                onClick={() => updateItemCount(item.id, item.count - 1)}
+                                                className="bg-gray-700 w-9 h-9 rounded-lg flex items-center justify-center hover:bg-gray-600 transition-colors"
+                                            >
+                                                <span className="text-xl">-</span>
+                                            </button>
+                                            <span className="text-xl w-12 text-center">{item.count}</span>
+                                            <button
+                                                onClick={() => updateItemCount(item.id, item.count + 1)}
+                                                className="bg-gray-700 w-9 h-9 rounded-lg flex items-center justify-center hover:bg-gray-600 transition-colors"
+                                            >
+                                                <span className="text-xl">+</span>
+                                            </button>
+                                        </div>
+                                        <div className="text-xl font-bold">
+                                            ${(item.price * item.count).toFixed(2)}
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
-                    ))}
-                </div>
-                <div className="mt-6 text-lg font-bold">
-                    總共 {totalCount} 項商品 ・ 共 $ {totalPrice} 元
-                </div>
-                <button
-                    onClick={handleSubmitOrder}
-                    className="mt-4 w-full bg-green-500 text-white py-2 rounded-lg font-bold"
-                >
-                    確認送出訂單
-                </button>
+
+                        <div
+                            className="fixed bottom-0 left-0 right-0 bg-gray-800 p-4 shadow-2xl border-t border-gray-700">
+                            <div className="flex justify-between items-center mb-3 text-lg">
+                                <span>商品數量</span>
+                                <span className="font-bold">{totalCount} 項</span>
+                            </div>
+                            <div className="flex justify-between items-center mb-4 text-xl">
+                                <span>總金額</span>
+                                <span className="font-bold text-green-400">${totalPrice.toFixed(2)}</span>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <button
+                                    onClick={handleBackToMenu}
+                                    className="bg-gray-600 hover:bg-gray-500 text-white py-3 rounded-lg font-bold transition-colors"
+                                >
+                                    ← 繼續購物
+                                </button>
+                                <button
+                                    onClick={handleSubmitOrder}
+                                    className="bg-green-500 hover:bg-green-400 text-white py-3 rounded-lg font-bold transition-colors"
+                                >
+                                    確認結帳 →
+                                </button>
+                            </div>
+                        </div>
+                    </>
+                )}
             </div>
         );
     }
@@ -80,5 +235,21 @@
     ReactDOM.createRoot(document.getElementById('root')).render(<ShoppingCart/>);
 </script>
 
+<style>
+    @keyframes fade-in {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .animate-fade-in {
+        animation: fade-in 0.3s ease-out;
+    }
+</style>
 </body>
 </html>
