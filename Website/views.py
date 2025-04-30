@@ -8,18 +8,23 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 import json
 
+
 # 你原本的頁面視圖 (保持不變)
 def page1(request):
     return render(request, 'page1.html')
 
+
 def page2_menu(request):
     return render(request, 'page2_menu.html')  # 渲染 page2_menu.html 頁面
+
 
 def page3_shopping_cart(request):
     return render(request, 'page3_shopping-cart.html')  # 渲染 page3_shopping-cart.html 頁面
 
+
 def admin_dashboard(request):
     return render(request, 'admin_dashboard.html')
+
 
 @csrf_exempt
 def save_cart(request):
@@ -27,6 +32,7 @@ def save_cart(request):
         data = json.loads(request.body)
         request.session['cart_items'] = data['items']
         return JsonResponse({'message': 'Cart saved successfully!'})
+
 
 @csrf_exempt
 def submit_order(request):
@@ -67,9 +73,11 @@ def submit_order(request):
             return JsonResponse({'success': False, 'error': str(e)}, status=400)
     return JsonResponse({'error': 'Invalid request method'}, status=405)
 
+
 def get_cart(request):
     cart_items = request.session.get('cart_items', [])
     return JsonResponse({'items': cart_items})
+
 
 @csrf_exempt
 @api_view(['GET'])
@@ -98,6 +106,7 @@ def get_orders(request):
     ]
     return Response(data)
 
+
 @api_view(['POST'])
 def update_order_status(request, order_id):
     """更新訂單狀態"""
@@ -109,6 +118,7 @@ def update_order_status(request, order_id):
         return Response({'success': True, 'message': '訂單狀態已更新'})
     return Response({'success': False, 'message': '無效的狀態值'}, status=400)
 
+
 @api_view(['POST'])
 def update_menu_item_status(request, item_id):
     """更新商品狀態（例如已售完）"""
@@ -117,6 +127,7 @@ def update_menu_item_status(request, item_id):
     menu_item.sold_out = sold_out
     menu_item.save()
     return Response({'success': True, 'message': '商品狀態已更新'})
+
 
 # 新增的 API 視圖
 class MenuItemListAPIView(generics.ListAPIView):
@@ -127,6 +138,7 @@ class MenuItemListAPIView(generics.ListAPIView):
     queryset = MenuItem.objects.all()
     serializer_class = MenuItemSerializer
 
+
 class MenuItemDetailAPIView(generics.RetrieveAPIView):
     """
     獲取單個商品詳情的 API
@@ -136,8 +148,35 @@ class MenuItemDetailAPIView(generics.RetrieveAPIView):
     serializer_class = MenuItemSerializer
     lookup_field = 'id'
 
+
 def page4_order_confirmation(request):
     order_id = request.GET.get('order_id')  # 從 URL 參數中獲取訂單 ID
     order = get_object_or_404(Order, order_id=order_id)
     return render(request, 'page4_order_confirmation.html', {'order': order})
 
+
+def page5_order_status(request):
+    return render(request, 'page5_order_status.html')
+
+
+@api_view(['GET'])
+def get_order_detail(request, order_id):
+    """獲取單個訂單詳情"""
+    order = get_object_or_404(Order, order_id=order_id)
+    data = {
+        'order_id': str(order.order_id),
+        'sequence_number': order.sequence_number,
+        'order_type': order.order_type,
+        'total_price': order.total_price,
+        'created_at': order.created_at,
+        'status': order.status,
+        'items': [
+            {
+                'name': item.menu_item.name,
+                'quantity': item.quantity,
+                'price': item.price
+            }
+            for item in order.items.all()
+        ]
+    }
+    return Response(data)
