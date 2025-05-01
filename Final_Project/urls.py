@@ -31,7 +31,7 @@ urlpatterns = [
     path('api/save-cart/', views.save_cart, name='save_cart'),
     path('api/get-cart/', views.get_cart, name='get_cart'),
     path('api/menu/<int:id>/', views.MenuItemDetailAPIView.as_view(), name='menu-item-detail'),
-# ... 其他路由 ...
+    # ... 其他路由 ...
     path('api/submit-order/', views.submit_order, name='submit_order'),
     path('api/orders/', get_orders, name='get_orders'),
     path('api/orders/<uuid:order_id>/status/', update_order_status, name='update_order_status'),
@@ -41,6 +41,9 @@ urlpatterns = [
 urlpatterns += [
     path('admin_dashboard/', views.admin_dashboard, name='admin_dashboard'),
     path('page4_order_confirmation/', views.page4_order_confirmation, name='page4_order_confirmation'),
+    # 在 urlpatterns 中添加
+    path('api/orders/<uuid:order_id>/', views.get_order_detail, name='order-detail'),
+    path('page5_order_status/', views.page5_order_status, name='page5_order_status'),
 ]
 
 if settings.DEBUG:
