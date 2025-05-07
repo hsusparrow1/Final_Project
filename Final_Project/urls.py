@@ -20,6 +20,7 @@ from Website import views
 from django.conf import settings
 from django.conf.urls.static import static
 from Website.views import get_orders, update_order_status, update_menu_item_status
+from Website.views import delete_order, delete_menu_item, add_menu_item
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -44,6 +45,9 @@ urlpatterns += [
     # 在 urlpatterns 中添加
     path('api/orders/<uuid:order_id>/', views.get_order_detail, name='order-detail'),
     path('page5_order_status/', views.page5_order_status, name='page5_order_status'),
+    path('api/orders/<uuid:order_id>/', delete_order, name='delete_order'),  # 刪除訂單
+    path('api/menu/<int:item_id>/', delete_menu_item, name='delete_menu_item'),  # 刪除商品
+    path('api/menu/', add_menu_item, name='add_menu_item'),  # 新增商品
 ]
 
 if settings.DEBUG:

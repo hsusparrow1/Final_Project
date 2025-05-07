@@ -28,6 +28,34 @@
     <!-- 商品管理 -->
     <div id="menu-section" class="hidden">
         <h2 class="text-2xl font-bold mt-6">商品管理</h2>
+
+        <!-- 新增商品 -->
+        <form id="add-menu-item-form" class="bg-gray-800 p-4 rounded-lg space-y-4 mb-6">
+            <h3 class="text-xl font-bold">新增商品</h3>
+            <div>
+                <label for="category" class="block text-sm font-medium text-gray-300">類別</label>
+                <select id="category" class="w-full bg-gray-700 text-white p-2 rounded">
+                    <option value="三明治">三明治</option>
+                    <option value="吐司">吐司</option>
+                    <option value="貝果">貝果</option>
+                    <option value="可頌">可頌</option>
+                    <option value="沙拉">沙拉</option>
+                    <option value="甜品">甜品</option>
+                    <option value="飲品">飲品</option>
+                    <option value="套餐">套餐</option>
+                </select>
+            </div>
+            <div>
+                <label for="name" class="block text-sm font-medium text-gray-300">商品名稱</label>
+                <input id="name" type="text" class="w-full bg-gray-700 text-white p-2 rounded" placeholder="輸入商品名稱">
+            </div>
+            <div>
+                <label for="price" class="block text-sm font-medium text-gray-300">價格</label>
+                <input id="price" type="number" class="w-full bg-gray-700 text-white p-2 rounded" placeholder="輸入價格">
+            </div>
+            <button type="button" onclick="addMenuItem()" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded">新增商品</button>
+        </form>
+
         <div id="menu-items" class="grid grid-cols-2 gap-4"></div>
     </div>
 </div>
@@ -100,6 +128,7 @@
                     ${order.status === '製作中' ? `
                         <button class="bg-green-500 px-4 py-2 rounded" onclick="updateOrderStatus('${order.order_id}', '完成')">標記為完成</button>
                     ` : ''}
+                    <button class="bg-red-500 px-4 py-2 rounded" onclick="deleteOrder('${order.order_id}')">刪除訂單</button>
                 </div>
             </div>
         `).join('');
@@ -114,6 +143,7 @@
                 <p><strong>總價：</strong>${order.total_price}</p>
                 <p><strong>建立時間：</strong>${order.created_at}</p>
                 <p><strong>狀態：</strong>${order.status || '未知'}</p>
+                <button class="bg-red-500 px-4 py-2 rounded" onclick="deleteOrder('${order.order_id}')">刪除訂單</button>
             </div>
         `).join('');
     }
@@ -132,8 +162,20 @@
                     onclick="updateMenuItemStatus(${item.id}, ${!item.sold_out})">
                     ${item.sold_out ? '標記為可販售' : '標記為已售完'}
                 </button>
+                <button class="bg-red-500 px-4 py-2 rounded mt-2" onclick="deleteMenuItem(${item.id})">刪除商品</button>
             </div>
         `).join('');
+    }
+
+    async function updateMenuItemStatus(itemId, soldOut) {
+        try {
+            await axios.post(`/api/menu/${itemId}/status/`, { sold_out: soldOut });
+            alert('商品狀態已更新');
+            fetchMenuItems();
+        } catch (error) {
+            console.error('更新商品狀態失敗：', error);
+            alert('更新商品狀態失敗，請稍後再試。');
+        }
     }
 
     async function updateOrderStatus(orderId, status) {
@@ -147,10 +189,41 @@
         }
     }
 
-    async function updateMenuItemStatus(itemId, soldOut) {
-        await axios.post(`/api/menu/${itemId}/status/`, { sold_out: soldOut });
-        alert('商品狀態已更新');
-        fetchMenuItems();
+    async function deleteOrder(orderId) {
+        try {
+            await axios.delete(`/api/orders/${orderId}/`);
+            alert('訂單已刪除');
+            fetchOrders();
+        } catch (error) {
+            console.error('刪除訂單失敗：', error);
+            alert('刪除訂單失敗，請稍後再試。');
+        }
+    }
+
+    async function addMenuItem() {
+        const category = document.getElementById('category').value;
+        const name = document.getElementById('name').value;
+        const price = document.getElementById('price').value;
+
+        try {
+            await axios.post('/api/menu/', { category, name, price });
+            alert('商品已新增');
+            fetchMenuItems();
+        } catch (error) {
+            console.error('新增商品失敗：', error);
+            alert('新增商品失敗，請稍後再試。');
+        }
+    }
+
+    async function deleteMenuItem(itemId) {
+        try {
+            await axios.delete(`/api/menu/${itemId}/`);
+            alert('商品已刪除');
+            fetchMenuItems();
+        } catch (error) {
+            console.error('刪除商品失敗：', error);
+            alert('刪除商品失敗，請稍後再試。');
+        }
     }
 
     fetchOrders();

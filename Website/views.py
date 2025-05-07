@@ -128,6 +128,41 @@ def update_menu_item_status(request, item_id):
     menu_item.save()
     return Response({'success': True, 'message': '商品狀態已更新'})
 
+@csrf_exempt
+@api_view(['POST'])
+def add_menu_item(request):
+    """新增商品"""
+    data = request.data
+    category = data.get('category')
+    name = data.get('name')
+    price = data.get('price')
+
+    if not category or not name or not price:
+        return Response({'success': False, 'message': '缺少必要參數'}, status=400)
+
+    menu_item = MenuItem.objects.create(
+        category=category,
+        name=name,
+        price=price
+    )
+    return Response({'success': True, 'message': '商品已新增', 'item_id': menu_item.id})
+
+@csrf_exempt
+@api_view(['DELETE'])
+def delete_order(request, order_id):
+    """刪除訂單"""
+    order = get_object_or_404(Order, order_id=order_id)
+    order.delete()
+    return Response({'success': True, 'message': '訂單已刪除'})
+
+@csrf_exempt
+@api_view(['DELETE'])
+def delete_menu_item(request, item_id):
+    """刪除商品"""
+    menu_item = get_object_or_404(MenuItem, id=item_id)
+    menu_item.delete()
+    return Response({'success': True, 'message': '商品已刪除'})
+
 
 # 新增的 API 視圖
 class MenuItemListAPIView(generics.ListAPIView):
