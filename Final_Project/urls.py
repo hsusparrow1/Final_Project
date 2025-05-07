@@ -4,8 +4,6 @@ from Website import views
 from django.conf import settings
 from django.conf.urls.static import static
 from Website.views import get_orders, update_order_status, update_menu_item_status
-# 將重複的路由整合後，不需要單獨導入 add_menu_item
-# from Website.views import add_menu_item 
 
 urlpatterns = [
     # 管理後台

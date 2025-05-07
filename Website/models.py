@@ -77,5 +77,3 @@ class OrderItem(models.Model):
     def save(self, *args, **kwargs):
         self.price = self.menu_item.price * self.quantity
         super().save(*args, **kwargs)
-
-
