@@ -6,9 +6,9 @@ from .models import MenuItem, Order, OrderItem  # 把你的 model 匯入
 # 菜單餐點
 @admin.register(MenuItem)
 class MenuItemAdmin(admin.ModelAdmin):
-    list_display = ('id', 'name', 'category', 'price')  # 後台列表會顯示這幾個欄位
-    list_filter = ('category',)  # 右邊可以用分類快速篩選
-    search_fields = ('name',)    # 上面有搜尋功能（搜尋餐點名字）
+    list_display = ('id', 'name', 'category', 'price', 'sold_out', 'member_only')  # 加入 member_only
+    list_filter = ('category', 'sold_out', 'member_only')  # 增加 member_only 篩選
+    search_fields = ('name',)
 
 # 訂單
 @admin.register(Order)

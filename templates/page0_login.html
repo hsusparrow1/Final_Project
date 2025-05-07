@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>會員登入/註冊</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-900 text-white min-h-screen">
+  <div class="container mx-auto px-4 py-12">
+    <h1 class="text-4xl font-bold text-center mb-12">歡迎來到早餐店點餐系統</h1>
+    
+    <!-- 標籤切換 -->
+    <div class="max-w-md mx-auto mb-8">
+      <div class="flex border-b border-gray-700">
+        <button id="login-tab" class="w-1/2 py-3 font-bold text-center text-lg border-b-2 border-blue-500" onclick="showTab('login')">
+          會員登入
+        </button>
+        <button id="register-tab" class="w-1/2 py-3 font-bold text-center text-lg text-gray-400" onclick="showTab('register')">
+          會員註冊
+        </button>
+      </div>
+    </div>
+    
+    <!-- 登入表單 -->
+    <div id="login-form" class="max-w-md mx-auto bg-gray-800 rounded-lg p-8 shadow-md">
+      <h2 class="text-2xl font-bold mb-6 text-center">會員登入</h2>
+      <form action="/login/" method="post" class="space-y-6">
+        {% csrf_token %}
+        <div>
+          <label for="login-username" class="block text-sm font-medium text-gray-400">用戶名</label>
+          <input type="text" id="login-username" name="username" required class="mt-1 w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+        <div>
+          <label for="login-password" class="block text-sm font-medium text-gray-400">密碼</label>
+          <input type="password" id="login-password" name="password" required class="mt-1 w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+        {% if error_message %}
+        <p class="text-red-500">{{ error_message }}</p>
+        {% endif %}
+        <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-bold transition-colors">
+          登入
+        </button>
+      </form>
+    </div>
+    
+    <!-- 註冊表單 -->
+    <div id="register-form" class="hidden max-w-md mx-auto bg-gray-800 rounded-lg p-8 shadow-md">
+      <h2 class="text-2xl font-bold mb-6 text-center">會員註冊</h2>
+      <form action="/register/" method="post" class="space-y-6">
+        {% csrf_token %}
+        <div>
+          <label for="register-username" class="block text-sm font-medium text-gray-400">用戶名</label>
+          <input type="text" id="register-username" name="username" required class="mt-1 w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+        <div>
+          <label for="register-email" class="block text-sm font-medium text-gray-400">電子郵件</label>
+          <input type="email" id="register-email" name="email" required class="mt-1 w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+        <div>
+          <label for="register-phone" class="block text-sm font-medium text-gray-400">手機號碼 (選填)</label>
+          <input type="tel" id="register-phone" name="phone" class="mt-1 w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+        <div>
+          <label for="register-password" class="block text-sm font-medium text-gray-400">密碼</label>
+          <input type="password" id="register-password" name="password" required class="mt-1 w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+        <div>
+          <label for="register-confirm-password" class="block text-sm font-medium text-gray-400">確認密碼</label>
+          <input type="password" id="register-confirm-password" name="confirm_password" required class="mt-1 w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+        {% if register_error %}
+        <p class="text-red-500">{{ register_error }}</p>
+        {% endif %}
+        <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-bold transition-colors">
+          註冊
+        </button>
+      </form>
+    </div>
+    
+    <!-- 直接進入 -->
+    <div class="max-w-md mx-auto mt-8 text-center">
+      <p class="text-gray-400 mb-4">不想登入/註冊?</p>
+      <a href="/page1/" class="inline-block bg-gray-600 hover:bg-gray-500 text-white px-8 py-3 rounded-lg font-bold transition-colors">
+        直接進入點餐
+      </a>
+    </div>
+  </div>
+  
+  <script>
+    function showTab(tab) {
+      const loginTab = document.getElementById('login-tab');
+      const registerTab = document.getElementById('register-tab');
+      const loginForm = document.getElementById('login-form');
+      const registerForm = document.getElementById('register-form');
+      
+      if (tab === 'login') {
+        loginTab.classList.add('border-b-2', 'border-blue-500');
+        loginTab.classList.remove('text-gray-400');
+        registerTab.classList.remove('border-b-2', 'border-blue-500');
+        registerTab.classList.add('text-gray-400');
+        loginForm.classList.remove('hidden');
+        registerForm.classList.add('hidden');
+      } else {
+        registerTab.classList.add('border-b-2', 'border-blue-500');
+        registerTab.classList.remove('text-gray-400');
+        loginTab.classList.remove('border-b-2', 'border-blue-500');
+        loginTab.classList.add('text-gray-400');
+        registerForm.classList.remove('hidden');
+        loginForm.classList.add('hidden');
+      }
+    }
+    
+    // 如果URL包含register參數，則顯示註冊表單
+    if (window.location.search.includes('register=true')) {
+      showTab('register');
+    }
+  </script>
+</body>
+</html>

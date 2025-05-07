@@ -1,4 +1,5 @@
 from django.db import models
+from django.contrib.auth.models import User
 import uuid  # 用來產生隨機不重複的訂單編號
 
 #  菜單分類（餐點資料）
@@ -21,6 +22,7 @@ class MenuItem(models.Model):
     price = models.DecimalField(max_digits=6, decimal_places=2)  # 價格（例如 199.00）
     image = models.ImageField(upload_to='menu_images/', blank=True, null=True)  # 餐點圖片（可以留空）
     sold_out = models.BooleanField(default=False)  # 新增欄位：是否已售完
+    member_only = models.BooleanField(default=False)  # 是否僅限會員購買
 
     def __str__(self):
         return self.name
@@ -77,3 +79,11 @@ class OrderItem(models.Model):
     def save(self, *args, **kwargs):
         self.price = self.menu_item.price * self.quantity
         super().save(*args, **kwargs)
+        
+class UserProfile(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+    phone = models.CharField(max_length=20, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return f"{self.user.username}'s profile"

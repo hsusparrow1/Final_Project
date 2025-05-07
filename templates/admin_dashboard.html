@@ -53,6 +53,12 @@
                 <label for="price" class="block text-sm font-medium text-gray-300">價格</label>
                 <input id="price" type="number" class="w-full bg-gray-700 text-white p-2 rounded" placeholder="輸入價格">
             </div>
+            <div>
+                <label class="inline-flex items-center">
+                    <input id="member-only" type="checkbox" class="bg-gray-700 border-gray-600 rounded">
+                    <span class="ml-2 text-sm font-medium text-gray-300">會員專區商品</span>
+                </label>
+            </div>
             <button type="button" onclick="addMenuItem()" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded">新增商品</button>
         </form>
 
@@ -157,6 +163,7 @@
                 <p><strong>名稱：</strong>${item.name}</p>
                 <p><strong>價格：</strong>${item.price}</p>
                 <p><strong>狀態：</strong>${item.sold_out ? '已售完' : '可販售'}</p>
+                <p><strong>會員專區：</strong>${item.member_only ? '是' : '否'}</p>
                 <button 
                     class="${item.sold_out ? 'bg-green-500' : 'bg-red-500'} px-4 py-2 rounded mt-2" 
                     onclick="updateMenuItemStatus(${item.id}, ${!item.sold_out})">
@@ -208,9 +215,10 @@
         const category = document.getElementById('category').value;
         const name = document.getElementById('name').value;
         const price = document.getElementById('price').value;
+        const memberOnly = document.getElementById('member-only').checked;
 
         try {
-            await axios.post('/api/menu/', { category, name, price });
+            await axios.post('/api/menu/', { category, name, price, member_only: memberOnly });
             alert('商品已新增');
             fetchMenuItems();
         } catch (error) {

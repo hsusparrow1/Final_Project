@@ -3,15 +3,22 @@ from django.urls import path
 from Website import views
 from django.conf import settings
 from django.conf.urls.static import static
-from Website.views import get_orders, update_order_status, update_menu_item_status
+from Website.views import page0, login_view, register_view, logout_view, check_auth, get_orders, update_order_status, update_menu_item_status
 
 urlpatterns = [
     # 管理後台
     path('admin/', admin.site.urls, name='admin'),  # Django 內建管理後台
     path('admin_dashboard/', views.admin_dashboard, name='admin_dashboard'),  # 店家自訂管理頁面
     
+    # 認證相關路由
+    path('login/', login_view, name='login'),
+    path('register/', register_view, name='register'),
+    path('logout/', logout_view, name='logout'),
+    path('api/check-auth/', check_auth, name='check_auth'),
+    
     # 前台頁面路由
-    path('', views.page1, name='home'),  # 首頁
+    path('', page0, name='home'),  # 登入首頁
+    path('page1/', views.page1, name='page1'),  # 內用外帶
     path('page2_menu/', views.page2_menu, name='page2_menu'),  # 菜單頁面
     path('page3_shopping_cart/', views.page3_shopping_cart, name='page3_shopping_cart'),  # 購物車頁面
     path('page4_order_confirmation/', views.page4_order_confirmation, name='page4_order_confirmation'),  # 訂單確認頁面

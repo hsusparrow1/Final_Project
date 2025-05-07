@@ -6,6 +6,10 @@ from django.shortcuts import render, get_object_or_404
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.db import transaction, connection
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.models import User
+from django.shortcuts import redirect
+from .models import UserProfile
 
 # REST Framework 相關導入
 from rest_framework import generics
@@ -26,6 +30,68 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 # 頁面渲染視圖
 # =============================================================================
+
+def page0(request):
+    """登入/註冊頁面"""
+    return render(request, 'page0_login.html')
+
+# 登入處理視圖
+def login_view(request):
+    """
+    處理用戶登入
+    """
+    if request.method == 'POST':
+        username = request.POST.get('username')
+        password = request.POST.get('password')
+        
+        user = authenticate(request, username=username, password=password)
+        if user is not None:
+            login(request, user)
+            return redirect('page1')  # 修改此處，原本是 'home'
+        else:
+            return render(request, 'page0_login.html', {'error_message': '用戶名或密碼不正確'})  # 修改此處，原本是 'page0.html'
+    return redirect('page0')
+
+# 添加註冊處理視圖
+def register_view(request):
+    """
+    處理用戶註冊
+    """
+    if request.method == 'POST':
+        username = request.POST.get('username')
+        email = request.POST.get('email')
+        password = request.POST.get('password')
+        confirm_password = request.POST.get('confirm_password')
+        phone = request.POST.get('phone', '')
+        
+        # 驗證密碼
+        if password != confirm_password:
+            return render(request, 'page0.html', {'register_error': '兩次輸入的密碼不一致'})
+        
+        # 檢查用戶名是否已存在
+        if User.objects.filter(username=username).exists():
+            return render(request, 'page0.html', {'register_error': '用戶名已存在'})
+        
+        # 創建用戶
+        try:
+            user = User.objects.create_user(username=username, email=email, password=password)
+            user_profile = UserProfile.objects.create(user=user, phone=phone)
+            
+            # 自動登入
+            login(request, user)
+            return redirect('home')
+        except Exception as e:
+            return render(request, 'page0.html', {'register_error': f'註冊失敗: {str(e)}'})
+    
+    return redirect('page0')
+
+# 添加登出處理視圖
+def logout_view(request):
+    """
+    處理用戶登出
+    """
+    logout(request)
+    return redirect('home')
 
 def page1(request):
     """首頁"""
@@ -58,6 +124,22 @@ def admin_dashboard(request):
     """管理後台頁面"""
     return render(request, 'admin_dashboard.html')
 
+# 添加檢查用戶認證狀態的API
+@api_view(['GET'])
+def check_auth(request):
+    """
+    檢查用戶是否已登入
+    
+    返回:
+    - is_authenticated: 布爾值，表示用戶是否已登入
+    - username: 如果已登入，返回用戶名
+    """
+    data = {
+        'is_authenticated': request.user.is_authenticated,
+    }
+    if request.user.is_authenticated:
+        data['username'] = request.user.username
+    return Response(data)
 
 # =============================================================================
 # 購物車相關 API
