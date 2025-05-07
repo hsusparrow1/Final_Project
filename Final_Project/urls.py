@@ -1,54 +1,40 @@
-"""
-URL configuration for Final_Project project.
-
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/5.2/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
-"""
 from django.contrib import admin
 from django.urls import path
 from Website import views
 from django.conf import settings
 from django.conf.urls.static import static
 from Website.views import get_orders, update_order_status, update_menu_item_status
-from Website.views import delete_order, delete_menu_item, add_menu_item
+# 將重複的路由整合後，不需要單獨導入 add_menu_item
+# from Website.views import add_menu_item 
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('', views.page1, name='home'),
-    path('api/menu/', views.MenuItemListAPIView.as_view(), name='menu-item-list'),  # API 列表，獲取所有餐點
-    path('api/menu/<int:id>/', views.MenuItemDetailAPIView.as_view(), name='menu-item-detail'),  # API 詳情，根據 ID 獲取單個餐點
-    path('page2_menu/', views.page2_menu, name='page2_menu'),  # 這裡是對應的路徑
-    path('page3_shopping_cart/', views.page3_shopping_cart, name='page3_shopping_cart'),  # 新增結帳頁面路由
-    path('api/save-cart/', views.save_cart, name='save_cart'),
-    path('api/get-cart/', views.get_cart, name='get_cart'),
-    path('api/menu/<int:id>/', views.MenuItemDetailAPIView.as_view(), name='menu-item-detail'),
-    # ... 其他路由 ...
-    path('api/submit-order/', views.submit_order, name='submit_order'),
-    path('api/orders/', get_orders, name='get_orders'),
-    path('api/orders/<uuid:order_id>/status/', update_order_status, name='update_order_status'),
-    path('api/menu/<int:item_id>/status/', update_menu_item_status, name='update_menu_item_status'),
+    # 管理後台
+    path('admin/', admin.site.urls, name='admin'),  # Django 內建管理後台
+    path('admin_dashboard/', views.admin_dashboard, name='admin_dashboard'),  # 店家自訂管理頁面
+    
+    # 前台頁面路由
+    path('', views.page1, name='home'),  # 首頁
+    path('page2_menu/', views.page2_menu, name='page2_menu'),  # 菜單頁面
+    path('page3_shopping_cart/', views.page3_shopping_cart, name='page3_shopping_cart'),  # 購物車頁面
+    path('page4_order_confirmation/', views.page4_order_confirmation, name='page4_order_confirmation'),  # 訂單確認頁面
+    path('page5_order_status/', views.page5_order_status, name='page5_order_status'),  # 訂單狀態頁面
+    
+    # 菜單相關 API
+    path('api/menu/', views.MenuItemListAPIView.as_view(), name='menu-item-list'),  # 獲取所有餐點/新增餐點
+    path('api/menu/<int:id>/', views.MenuItemDetailAPIView.as_view(), name='menu-item-detail'),  # 獲取/刪除單個餐點
+    path('api/menu/<int:item_id>/status/', update_menu_item_status, name='update_menu_item_status'),  # 更新餐點狀態(售完/可售)
+    
+    # 購物車相關 API
+    path('api/save-cart/', views.save_cart, name='save_cart'),  # 儲存購物車內容
+    path('api/get-cart/', views.get_cart, name='get_cart'),  # 獲取購物車內容
+    
+    # 訂單相關 API
+    path('api/submit-order/', views.submit_order, name='submit_order'),  # 提交訂單
+    path('api/orders/', get_orders, name='get_orders'),  # 獲取所有訂單列表
+    path('api/orders/<uuid:order_id>/', views.get_order_detail, name='order-detail'),  # 獲取/刪除單個訂單詳情
+    path('api/orders/<uuid:order_id>/status/', update_order_status, name='update_order_status'),  # 更新訂單狀態
 ]
 
-urlpatterns += [
-    path('admin_dashboard/', views.admin_dashboard, name='admin_dashboard'),
-    path('page4_order_confirmation/', views.page4_order_confirmation, name='page4_order_confirmation'),
-    # 在 urlpatterns 中添加
-    path('api/orders/<uuid:order_id>/', views.get_order_detail, name='order-detail'),
-    path('page5_order_status/', views.page5_order_status, name='page5_order_status'),
-    path('api/orders/<uuid:order_id>/', delete_order, name='delete_order'),  # 刪除訂單
-    path('api/menu/<int:item_id>/', delete_menu_item, name='delete_menu_item'),  # 刪除商品
-    path('api/menu/', add_menu_item, name='add_menu_item'),  # 新增商品
-]
-
+# 在開發環境中提供媒體文件服務
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

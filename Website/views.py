@@ -1,4 +1,5 @@
 from django.shortcuts import render, get_object_or_404
+from django.http import JsonResponse
 from rest_framework import generics
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -7,7 +8,9 @@ from .serializers import MenuItemSerializer
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 import json
+import logging
 
+logger = logging.getLogger(__name__)
 
 # 你原本的頁面視圖 (保持不變)
 def page1(request):
@@ -147,41 +150,35 @@ def add_menu_item(request):
     )
     return Response({'success': True, 'message': '商品已新增', 'item_id': menu_item.id})
 
-@csrf_exempt
-@api_view(['DELETE'])
-def delete_order(request, order_id):
-    """刪除訂單"""
-    order = get_object_or_404(Order, order_id=order_id)
-    order.delete()
-    return Response({'success': True, 'message': '訂單已刪除'})
-
-@csrf_exempt
-@api_view(['DELETE'])
-def delete_menu_item(request, item_id):
-    """刪除商品"""
-    menu_item = get_object_or_404(MenuItem, id=item_id)
-    menu_item.delete()
-    return Response({'success': True, 'message': '商品已刪除'})
-
-
-# 新增的 API 視圖
-class MenuItemListAPIView(generics.ListAPIView):
+class MenuItemListAPIView(generics.ListCreateAPIView):  # 改為 ListCreateAPIView
     """
     獲取所有商品列表的 API
     範例請求: GET /api/menu/
+    POST /api/menu/ 用於新增商品
     """
     queryset = MenuItem.objects.all()
     serializer_class = MenuItemSerializer
+    
+    def perform_create(self, serializer):
+        serializer.save()
 
 
-class MenuItemDetailAPIView(generics.RetrieveAPIView):
+class MenuItemDetailAPIView(generics.RetrieveDestroyAPIView):  # 從 RetrieveAPIView 改為 RetrieveDestroyAPIView
     """
-    獲取單個商品詳情的 API
-    範例請求: GET /api/menu/1/  (1 是商品 ID)
+    獲取或刪除單個商品詳情的 API
+    範例請求: 
+    GET /api/menu/1/  (1 是商品 ID) - 獲取商品詳情
+    DELETE /api/menu/1/ - 刪除商品
     """
     queryset = MenuItem.objects.all()
     serializer_class = MenuItemSerializer
     lookup_field = 'id'
+    
+    def destroy(self, request, *args, **kwargs):
+        """自定義刪除行為，以保持與原 delete_menu_item 一致的回應格式"""
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        return Response({'success': True, 'message': '商品已刪除'})
 
 
 def page4_order_confirmation(request):
@@ -194,24 +191,30 @@ def page5_order_status(request):
     return render(request, 'page5_order_status.html')
 
 
-@api_view(['GET'])
+@api_view(['GET', 'DELETE'])
 def get_order_detail(request, order_id):
-    """獲取單個訂單詳情"""
+    """獲取或刪除單個訂單詳情"""
     order = get_object_or_404(Order, order_id=order_id)
-    data = {
-        'order_id': str(order.order_id),
-        'sequence_number': order.sequence_number,
-        'order_type': order.order_type,
-        'total_price': order.total_price,
-        'created_at': order.created_at,
-        'status': order.status,
-        'items': [
-            {
-                'name': item.menu_item.name,
-                'quantity': item.quantity,
-                'price': item.price
-            }
-            for item in order.items.all()
-        ]
-    }
-    return Response(data)
+    
+    if request.method == 'GET':
+        data = {
+            'order_id': str(order.order_id),
+            'sequence_number': order.sequence_number,
+            'order_type': order.order_type,
+            'total_price': order.total_price,
+            'created_at': order.created_at,
+            'status': order.status,
+            'items': [
+                {
+                    'name': item.menu_item.name,
+                    'quantity': item.quantity,
+                    'price': item.price
+                }
+                for item in order.items.all()
+            ]
+        }
+        return Response(data)
+    
+    elif request.method == 'DELETE':
+        order.delete()
+        return Response({'success': True, 'message': '訂單已刪除'})

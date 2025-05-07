@@ -191,7 +191,11 @@
 
     async function deleteOrder(orderId) {
         try {
-            await axios.delete(`/api/orders/${orderId}/`);
+            await axios.delete(`/api/orders/${orderId}/`, {
+                headers: {
+                    'X-CSRFToken': getCSRFToken()
+                }
+            });
             alert('訂單已刪除');
             fetchOrders();
         } catch (error) {
