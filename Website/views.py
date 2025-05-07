@@ -1,41 +1,110 @@
+# =============================================================================
+# 導入區域
+# =============================================================================
+# Django 相關導入
 from django.shortcuts import render, get_object_or_404
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.db import transaction, connection
+
+# REST Framework 相關導入
 from rest_framework import generics
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
+
+# 專案模型與序列化器導入
 from .models import MenuItem, Order, OrderItem
 from .serializers import MenuItemSerializer
-from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
+
+# 其他標準庫導入
 import json
+import logging
 
+# 設置日誌記錄
+logger = logging.getLogger(__name__)
 
-# 你原本的頁面視圖 (保持不變)
+# =============================================================================
+# 頁面渲染視圖
+# =============================================================================
+
 def page1(request):
+    """首頁"""
     return render(request, 'page1.html')
 
 
 def page2_menu(request):
-    return render(request, 'page2_menu.html')  # 渲染 page2_menu.html 頁面
+    """菜單頁面"""
+    return render(request, 'page2_menu.html')
 
 
 def page3_shopping_cart(request):
-    return render(request, 'page3_shopping-cart.html')  # 渲染 page3_shopping-cart.html 頁面
+    """購物車頁面"""
+    return render(request, 'page3_shopping-cart.html')
+
+
+def page4_order_confirmation(request):
+    """訂單確認頁面"""
+    order_id = request.GET.get('order_id')
+    order = get_object_or_404(Order, order_id=order_id)
+    return render(request, 'page4_order_confirmation.html', {'order': order})
+
+
+def page5_order_status(request):
+    """訂單狀態頁面"""
+    return render(request, 'page5_order_status.html')
 
 
 def admin_dashboard(request):
+    """管理後台頁面"""
     return render(request, 'admin_dashboard.html')
 
 
+# =============================================================================
+# 購物車相關 API
+# =============================================================================
+
 @csrf_exempt
 def save_cart(request):
+    """
+    儲存購物車內容至 session
+    
+    POST 請求參數:
+    - items: 購物車項目列表
+    """
     if request.method == 'POST':
         data = json.loads(request.body)
         request.session['cart_items'] = data['items']
         return JsonResponse({'message': 'Cart saved successfully!'})
 
 
+def get_cart(request):
+    """
+    從 session 獲取購物車內容
+    
+    返回:
+    - items: 購物車項目列表
+    """
+    cart_items = request.session.get('cart_items', [])
+    return JsonResponse({'items': cart_items})
+
+
+# =============================================================================
+# 訂單相關 API
+# =============================================================================
+
 @csrf_exempt
 def submit_order(request):
+    """
+    提交訂單
+    
+    POST 請求參數:
+    - type: 訂單類型 (外帶或內用)
+    - items: 訂單項目列表，每個項目包含 id 和 count
+    
+    返回:
+    - success: 成功或失敗
+    - order_id: 新建訂單的 ID
+    """
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
@@ -45,10 +114,11 @@ def submit_order(request):
             # 創建新訂單
             order = Order.objects.create(
                 order_type=order_type,
-                gmail='',  # 您可以根據需要添加郵件收集功能
+                gmail='',  # 可以根據需要添加郵件收集功能
                 total_price=0  # 初始值，後面會計算
             )
 
+            # 建立訂單項目並計算總價
             total_price = 0
             for item_data in items:
                 menu_item = MenuItem.objects.get(id=item_data['id'])
@@ -70,29 +140,30 @@ def submit_order(request):
 
             return JsonResponse({'success': True, 'order_id': str(order.order_id)})
         except Exception as e:
+            logger.error(f"提交訂單時發生錯誤: {str(e)}")
             return JsonResponse({'success': False, 'error': str(e)}, status=400)
     return JsonResponse({'error': 'Invalid request method'}, status=405)
-
-
-def get_cart(request):
-    cart_items = request.session.get('cart_items', [])
-    return JsonResponse({'items': cart_items})
 
 
 @csrf_exempt
 @api_view(['GET'])
 def get_orders(request):
-    """取得所有訂單"""
-    orders = Order.objects.all()
+    """
+    獲取所有訂單列表
+    
+    返回:
+    - 訂單列表，包含訂單詳情和項目
+    """
+    orders = Order.objects.all().order_by('-created_at')  # 按創建時間倒序排列
     data = [
         {
             'order_id': str(order.order_id),
-            'sequence_number': order.sequence_number,  # 新增流水號
+            'sequence_number': order.sequence_number,
             'order_type': order.order_type,
             'gmail': order.gmail,
             'total_price': order.total_price,
             'created_at': order.created_at,
-            'status': order.status,  # 確保返回 status
+            'status': order.status,
             'items': [
                 {
                     'name': item.menu_item.name,
@@ -107,9 +178,54 @@ def get_orders(request):
     return Response(data)
 
 
+@api_view(['GET', 'DELETE'])
+def get_order_detail(request, order_id):
+    """
+    獲取或刪除單個訂單詳情
+    
+    GET 返回:
+    - 單個訂單的詳細信息
+    
+    DELETE 返回:
+    - 操作成功或失敗的消息
+    """
+    order = get_object_or_404(Order, order_id=order_id)
+    
+    if request.method == 'GET':
+        data = {
+            'order_id': str(order.order_id),
+            'sequence_number': order.sequence_number,
+            'order_type': order.order_type,
+            'total_price': order.total_price,
+            'created_at': order.created_at,
+            'status': order.status,
+            'items': [
+                {
+                    'name': item.menu_item.name,
+                    'quantity': item.quantity,
+                    'price': item.price
+                }
+                for item in order.items.all()
+            ]
+        }
+        return Response(data)
+    
+    elif request.method == 'DELETE':
+        order.delete()
+        return Response({'success': True, 'message': '訂單已刪除'})
+
+
 @api_view(['POST'])
 def update_order_status(request, order_id):
-    """更新訂單狀態"""
+    """
+    更新訂單狀態
+    
+    POST 請求參數:
+    - status: 新的訂單狀態 ('已送單', '製作中', '完成')
+    
+    返回:
+    - 操作成功或失敗的消息
+    """
     order = get_object_or_404(Order, order_id=order_id)
     status = request.data.get('status')
     if status in ['已送單', '製作中', '完成']:
@@ -119,9 +235,52 @@ def update_order_status(request, order_id):
     return Response({'success': False, 'message': '無效的狀態值'}, status=400)
 
 
+# =============================================================================
+# 菜單項目相關 API
+# =============================================================================
+
+@csrf_exempt
+@api_view(['POST'])
+def add_menu_item(request):
+    """
+    新增菜單項目
+    
+    POST 請求參數:
+    - category: 分類
+    - name: 名稱
+    - price: 價格
+    
+    返回:
+    - success: 成功或失敗
+    - item_id: 新項目的 ID
+    """
+    data = request.data
+    category = data.get('category')
+    name = data.get('name')
+    price = data.get('price')
+
+    if not category or not name or not price:
+        return Response({'success': False, 'message': '缺少必要參數'}, status=400)
+
+    menu_item = MenuItem.objects.create(
+        category=category,
+        name=name,
+        price=price
+    )
+    return Response({'success': True, 'message': '商品已新增', 'item_id': menu_item.id})
+
+
 @api_view(['POST'])
 def update_menu_item_status(request, item_id):
-    """更新商品狀態（例如已售完）"""
+    """
+    更新菜單項目狀態（例如標記為售完）
+    
+    POST 請求參數:
+    - sold_out: 是否售完 (布爾值)
+    
+    返回:
+    - 操作成功或失敗的消息
+    """
     menu_item = get_object_or_404(MenuItem, id=item_id)
     sold_out = request.data.get('sold_out', False)
     menu_item.sold_out = sold_out
@@ -129,54 +288,75 @@ def update_menu_item_status(request, item_id):
     return Response({'success': True, 'message': '商品狀態已更新'})
 
 
-# 新增的 API 視圖
-class MenuItemListAPIView(generics.ListAPIView):
+class MenuItemListAPIView(generics.ListCreateAPIView):
     """
-    獲取所有商品列表的 API
-    範例請求: GET /api/menu/
+    菜單項目列表 API
+    
+    GET:
+    獲取所有菜單項目
+    
+    POST:
+    新增菜單項目
     """
-    queryset = MenuItem.objects.all()
+    queryset = MenuItem.objects.all().order_by('id')  # 按 ID 排序
     serializer_class = MenuItemSerializer
+    
+    def perform_create(self, serializer):
+        serializer.save()
 
 
-class MenuItemDetailAPIView(generics.RetrieveAPIView):
+class MenuItemDetailAPIView(generics.RetrieveDestroyAPIView):
     """
-    獲取單個商品詳情的 API
-    範例請求: GET /api/menu/1/  (1 是商品 ID)
+    菜單項目詳情 API
+    
+    GET:
+    獲取單個菜單項目詳情
+    
+    DELETE:
+    刪除菜單項目，並重新排列 ID
     """
     queryset = MenuItem.objects.all()
     serializer_class = MenuItemSerializer
     lookup_field = 'id'
-
-
-def page4_order_confirmation(request):
-    order_id = request.GET.get('order_id')  # 從 URL 參數中獲取訂單 ID
-    order = get_object_or_404(Order, order_id=order_id)
-    return render(request, 'page4_order_confirmation.html', {'order': order})
-
-
-def page5_order_status(request):
-    return render(request, 'page5_order_status.html')
-
-
-@api_view(['GET'])
-def get_order_detail(request, order_id):
-    """獲取單個訂單詳情"""
-    order = get_object_or_404(Order, order_id=order_id)
-    data = {
-        'order_id': str(order.order_id),
-        'sequence_number': order.sequence_number,
-        'order_type': order.order_type,
-        'total_price': order.total_price,
-        'created_at': order.created_at,
-        'status': order.status,
-        'items': [
-            {
-                'name': item.menu_item.name,
-                'quantity': item.quantity,
-                'price': item.price
-            }
-            for item in order.items.all()
-        ]
-    }
-    return Response(data)
+    
+    def destroy(self, request, *args, **kwargs):
+        """
+        刪除菜單項目並重新排列 ID，保持 ID 連續性
+        
+        處理步驟:
+        1. 刪除與該商品關聯的訂單項目
+        2. 刪除商品本身
+        3. 更新關聯表中的外鍵引用
+        4. 重新排列後續商品的 ID
+        """
+        with transaction.atomic():
+            # 獲取要刪除的實例
+            instance = self.get_object()
+            deleted_id = instance.id
+            
+            # 找出所有關聯的訂單項
+            related_order_items = OrderItem.objects.filter(menu_item_id=deleted_id)
+            
+            # 處理關聯的訂單項
+            if related_order_items.exists():
+                related_order_items.delete()
+            
+            # 刪除商品
+            self.perform_destroy(instance)
+            
+            # 獲取所有大於被刪除 ID 的商品
+            items_to_update = MenuItem.objects.filter(id__gt=deleted_id).order_by('id')
+            
+            # 更新關聯表中的外鍵引用
+            for item in items_to_update:
+                OrderItem.objects.filter(menu_item_id=item.id).update(menu_item_id=item.id - 1)
+                
+            # 重新排列 ID
+            for item in items_to_update:
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        "UPDATE Website_menuitem SET id = %s WHERE id = %s",
+                        [item.id - 1, item.id]
+                    )
+                    
+        return Response({'success': True, 'message': '商品已刪除，ID 已重新排列'})
