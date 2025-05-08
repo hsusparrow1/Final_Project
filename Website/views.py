@@ -2,6 +2,8 @@
 # 導入區域
 # =============================================================================
 # Django 相關導入
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.middleware.csrf import get_token
 from django.shortcuts import render, get_object_or_404
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -9,6 +11,8 @@ from django.db import transaction, connection
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
 from django.shortcuts import redirect
+from django.views.decorators.http import require_http_methods, require_GET
+
 from .models import UserProfile
 
 # REST Framework 相關導入
@@ -481,3 +485,39 @@ def delete_completed_orders(request):
         logger.error(f"刪除已完成訂單時發生錯誤: {str(e)}")
         return Response({'success': False, 'error': str(e)},
                         status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+def is_superuser(user):
+    """檢查是否為超級用戶"""
+    return user.is_superuser
+
+
+# 登入頁面（無需裝飾器，允許公開訪問）
+def admin_dashboard_login(request):
+    if request.user.is_authenticated and request.user.is_superuser:
+        return redirect('admin_dashboard')
+    return render(request, 'admin_dashboard_login.html')
+
+
+# 登入驗證
+def admin_dashboard_auth(request):
+    if request.method == 'POST':
+        username = request.POST.get('username')
+        password = request.POST.get('password')
+
+        user = authenticate(request, username=username, password=password)
+        if user is not None and user.is_superuser:
+            login(request, user)
+            return redirect('admin_dashboard')
+        else:
+            return render(request, 'admin_dashboard_login.html', {
+                'error': '無效的憑證或您沒有管理員權限'
+            })
+    return redirect('admin_dashboard_login')
+
+
+# 主控台頁面（受保護）
+@login_required(login_url='/admin_dashboard/login/')
+@user_passes_test(is_superuser)
+def admin_dashboard(request):
+    return render(request, 'admin_dashboard.html')

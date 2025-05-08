@@ -14,8 +14,12 @@
 
     <!-- 分頁按鈕 -->
     <div class="flex space-x-4 mb-6">
-        <button id="orders-tab" class="px-6 py-3 text-lg rounded-full bg-white text-black font-semibold" onclick="showTab('orders')">訂單管理</button>
-        <button id="menu-tab" class="px-6 py-3 text-lg rounded-full bg-gray-700 text-white font-semibold" onclick="showTab('menu')">商品管理</button>
+        <button id="orders-tab" class="px-6 py-3 text-lg rounded-full bg-white text-black font-semibold"
+                onclick="showTab('orders')">訂單管理
+        </button>
+        <button id="menu-tab" class="px-6 py-3 text-lg rounded-full bg-gray-700 text-white font-semibold"
+                onclick="showTab('menu')">商品管理
+        </button>
     </div>
 
     <!-- 訂單管理 -->
@@ -55,11 +59,13 @@
             </div>
             <div>
                 <label for="name" class="block text-sm font-medium text-gray-300">商品名稱</label>
-                <input id="name" type="text" class="w-full bg-gray-700 text-white p-2 rounded" placeholder="輸入商品名稱">
+                <input id="name" type="text" class="w-full bg-gray-700 text-white p-2 rounded"
+                       placeholder="輸入商品名稱">
             </div>
             <div>
                 <label for="price" class="block text-sm font-medium text-gray-300">價格</label>
-                <input id="price" type="number" class="w-full bg-gray-700 text-white p-2 rounded" placeholder="輸入價格">
+                <input id="price" type="number" class="w-full bg-gray-700 text-white p-2 rounded"
+                       placeholder="輸入價格">
             </div>
             <div>
                 <label class="inline-flex items-center">
@@ -67,7 +73,9 @@
                     <span class="ml-2 text-sm font-medium text-gray-300">會員專區商品</span>
                 </label>
             </div>
-            <button type="button" onclick="addMenuItem()" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded">新增商品</button>
+            <button type="button" onclick="addMenuItem()"
+                    class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded">新增商品
+            </button>
         </form>
 
         <div id="menu-items" class="grid grid-cols-2 gap-4"></div>
@@ -193,7 +201,7 @@
 
     async function updateMenuItemStatus(itemId, soldOut) {
         try {
-            await axios.post(`/api/menu/${itemId}/status/`, { sold_out: soldOut });
+            await axios.post(`/api/menu/${itemId}/status/`, {sold_out: soldOut});
             alert('商品狀態已更新');
             fetchMenuItems();
         } catch (error) {
@@ -204,7 +212,7 @@
 
     async function updateOrderStatus(orderId, status) {
         try {
-            await axios.post(`/api/orders/${orderId}/status/`, { status });
+            await axios.post(`/api/orders/${orderId}/status/`, {status});
             alert('訂單狀態已更新');
             fetchOrders();
         } catch (error) {
@@ -288,7 +296,7 @@
         const memberOnly = document.getElementById('member-only').checked;
 
         try {
-            await axios.post('/api/menu/', { category, name, price, member_only: memberOnly });
+            await axios.post('/api/menu/', {category, name, price, member_only: memberOnly});
             alert('商品已新增');
             fetchMenuItems();
         } catch (error) {
@@ -311,5 +319,11 @@
     fetchOrders();
     fetchMenuItems();
 </script>
+<div class="fixed bottom-4 right-4">
+    <a href="{% url 'logout' %}?next=/admin_dashboard_login/"
+       class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg shadow-lg">
+        登出管理後台
+    </a>
+</div>
 </body>
 </html>

@@ -1,10 +1,11 @@
 from django.contrib import admin
+from django.contrib.auth.decorators import login_required
 from django.urls import path
 from Website import views
 from django.conf import settings
 from django.conf.urls.static import static
 from Website.views import page0, login_view, register_view, logout_view, check_auth, get_orders, update_order_status, \
-    update_menu_item_status
+    update_menu_item_status, admin_dashboard_login, admin_dashboard_auth, admin_dashboard
 
 urlpatterns = [
     # 管理後台
@@ -41,6 +42,13 @@ urlpatterns = [
     path('api/orders/<uuid:order_id>/status/', update_order_status, name='update_order_status'),  # 更新訂單狀態
     path('api/orders/<uuid:order_id>/delete/', views.delete_order, name='delete_order'),
     path('api/orders/completed/delete/', views.delete_completed_orders, name='delete_completed_orders'),
+    # 管理後台登入路由（公開訪問）
+    path('admin_dashboard/login/', admin_dashboard_login, name='admin_dashboard_login'),
+    path('admin_dashboard/auth/', admin_dashboard_auth, name='admin_dashboard_auth'),
+
+    # 保護的管理後台主頁（需要登入）
+    path('admin_dashboard/', login_required(admin_dashboard, login_url='/admin_dashboard/login/'),
+         name='admin_dashboard'),
 ]
 
 # 在開發環境中提供媒體文件服務
