@@ -5,6 +5,8 @@
     <title>店家管理介面</title>
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    {% csrf_token %}
+    <meta name="csrf-token" content="{{ csrf_token }}">
 </head>
 <body class="bg-gray-900 text-white">
 <div class="container mx-auto p-4">
@@ -21,8 +23,14 @@
         <h2 class="text-2xl font-bold mt-6">現有訂單</h2>
         <div id="current-orders" class="space-y-4"></div>
 
-        <h2 class="text-2xl font-bold mt-6">歷史訂單</h2>
-        <div id="completed-orders" class="space-y-4"></div>
+        <div class="flex items-center justify-between mt-6">
+            <h2 class="text-2xl font-bold">歷史訂單</h2>
+            <button onclick="confirmDeleteAllCompletedOrders()"
+                    class="bg-red-500 hover:bg-red-600 px-4 py-2 rounded text-white">
+                刪除全部歷史訂單
+            </button>
+        </div>
+        <div id="completed-orders" class="space-y-4 mt-2"></div>
     </div>
 
     <!-- 商品管理 -->
@@ -68,7 +76,8 @@
 
 <script>
     // 獲取 CSRF Token
-    const getCSRFToken = () => {
+    function getCSRFToken() {
+        // 從 cookie 獲取 CSRF token
         const cookies = document.cookie.split(';');
         for (let cookie of cookies) {
             const [name, value] = cookie.trim().split('=');
@@ -76,8 +85,17 @@
                 return value;
             }
         }
-        return null;
-    };
+
+        // 如果 cookie 中沒有，嘗試從 meta 標籤獲取
+        const tokenElement = document.querySelector('meta[name="csrf-token"]');
+        if (tokenElement) {
+            return tokenElement.getAttribute('content');
+        }
+
+        // 兩種方式都找不到，提示錯誤
+        console.error('無法獲取 CSRF Token!');
+        return '';
+    }
 
     // 設置 Axios 默認的 CSRF Token
     axios.defaults.headers.common['X-CSRFToken'] = getCSRFToken();
@@ -134,7 +152,7 @@
                     ${order.status === '製作中' ? `
                         <button class="bg-green-500 px-4 py-2 rounded" onclick="updateOrderStatus('${order.order_id}', '完成')">標記為完成</button>
                     ` : ''}
-                    <button class="bg-red-500 px-4 py-2 rounded" onclick="deleteOrder('${order.order_id}')">刪除訂單</button>
+                    <button class="bg-red-500 px-4 py-2 rounded" onclick="confirmDeleteOrder('${order.order_id}')">刪除訂單</button>
                 </div>
             </div>
         `).join('');
@@ -149,7 +167,6 @@
                 <p><strong>總價：</strong>${order.total_price}</p>
                 <p><strong>建立時間：</strong>${order.created_at}</p>
                 <p><strong>狀態：</strong>${order.status || '未知'}</p>
-                <button class="bg-red-500 px-4 py-2 rounded" onclick="deleteOrder('${order.order_id}')">刪除訂單</button>
             </div>
         `).join('');
     }
@@ -164,12 +181,12 @@
                 <p><strong>價格：</strong>${item.price}</p>
                 <p><strong>狀態：</strong>${item.sold_out ? '已售完' : '可販售'}</p>
                 <p><strong>會員專區：</strong>${item.member_only ? '是' : '否'}</p>
-                <button 
-                    class="${item.sold_out ? 'bg-green-500' : 'bg-red-500'} px-4 py-2 rounded mt-2" 
+                <button
+                    class="${item.sold_out ? 'bg-green-500' : 'bg-red-500'} px-4 py-2 rounded mt-2"
                     onclick="updateMenuItemStatus(${item.id}, ${!item.sold_out})">
                     ${item.sold_out ? '標記為可販售' : '標記為已售完'}
                 </button>
-                <button class="bg-red-500 px-4 py-2 rounded mt-2" onclick="deleteMenuItem(${item.id})">刪除商品</button>
+                <button class="bg-red-500 px-4 py-2 rounded mt-2" onclick="confirmDeleteMenuItem(${item.id})">刪除商品</button>
             </div>
         `).join('');
     }
@@ -196,18 +213,71 @@
         }
     }
 
+    // 確認刪除單一訂單
+    function confirmDeleteOrder(orderId) {
+        if (confirm('確定要刪除此訂單嗎？此操作無法復原！')) {
+            deleteOrder(orderId);
+        }
+    }
+
+    // 刪除單一訂單
     async function deleteOrder(orderId) {
         try {
-            await axios.delete(`/api/orders/${orderId}/`, {
+            const response = await axios.delete(`/api/orders/${orderId}/delete/`, {
                 headers: {
-                    'X-CSRFToken': getCSRFToken()
+                    'X-CSRFToken': getCSRFToken(),
+                    'Content-Type': 'application/json'
                 }
             });
-            alert('訂單已刪除');
+
+            if (response.data.success || response.data.message) {
+                alert('訂單已成功刪除');
+                fetchOrders();
+            } else {
+                alert('刪除失敗: 未知錯誤');
+            }
+        } catch (error) {
+            console.error('刪除訂單時發生錯誤:', error);
+            let errorMessage = '刪除訂單失敗';
+
+            if (error.response) {
+                errorMessage += `: ${error.response.status}`;
+                if (error.response.data && error.response.data.error) {
+                    errorMessage += ` - ${error.response.data.error}`;
+                }
+            }
+            alert(errorMessage);
+        }
+    }
+
+    // 確認刪除全部歷史訂單
+    function confirmDeleteAllCompletedOrders() {
+        if (confirm('確定要刪除所有歷史訂單嗎？此操作無法復原！')) {
+            deleteAllCompletedOrders();
+        }
+    }
+
+    // 刪除全部歷史訂單
+    async function deleteAllCompletedOrders() {
+        try {
+            const response = await axios.delete('/api/orders/completed/delete/', {
+                headers: {
+                    'X-CSRFToken': getCSRFToken(),
+                    'Content-Type': 'application/json'
+                }
+            });
+            alert(response.data.message || '所有歷史訂單已刪除');
             fetchOrders();
         } catch (error) {
-            console.error('刪除訂單失敗：', error);
-            alert('刪除訂單失敗，請稍後再試。');
+            console.error('刪除歷史訂單失敗：', error);
+            alert('刪除歷史訂單失敗，請稍後再試。');
+        }
+    }
+
+    // 確認刪除商品
+    function confirmDeleteMenuItem(itemId) {
+        if (confirm('確定要刪除此商品嗎？此操作無法復原！')) {
+            deleteMenuItem(itemId);
         }
     }
 
