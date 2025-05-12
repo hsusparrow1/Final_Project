@@ -3,7 +3,6 @@
 # =============================================================================
 # Django 相關導入
 from django.contrib.auth.decorators import login_required, user_passes_test
-from django.middleware.csrf import get_token
 from django.shortcuts import render, get_object_or_404
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -11,7 +10,6 @@ from django.db import transaction, connection
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
 from django.shortcuts import redirect
-from django.views.decorators.http import require_http_methods, require_GET
 
 from .models import UserProfile
 
@@ -73,11 +71,11 @@ def register_view(request):
 
         # 驗證密碼
         if password != confirm_password:
-            return render(request, 'page0.html', {'register_error': '兩次輸入的密碼不一致'})
+            return render(request, 'page0_login.html', {'register_error': '兩次輸入的密碼不一致'})
 
         # 檢查用戶名是否已存在
         if User.objects.filter(username=username).exists():
-            return render(request, 'page0.html', {'register_error': '用戶名已存在'})
+            return render(request, 'page0_login.html', {'register_error': '用戶名已存在'})
 
         # 創建用戶
         try:
@@ -88,7 +86,7 @@ def register_view(request):
             login(request, user)
             return redirect('home')
         except Exception as e:
-            return render(request, 'page0.html', {'register_error': f'註冊失敗: {str(e)}'})
+            return render(request, 'page0_login.html', {'register_error': f'註冊失敗: {str(e)}'})
 
     return redirect('page0')
 
