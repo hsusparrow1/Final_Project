@@ -13,6 +13,7 @@ class MenuItem(models.Model):
         ('飲品', '飲品'),
         ('甜品', '甜品'),
         ('套餐', '套餐'),
+        ('會員', '會員')
     ]
 
     id = models.AutoField(primary_key=True)  # 自動編號（1, 2, 3...）
