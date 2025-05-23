@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>訂單成立</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        @media (max-width: 640px) {
+            h1 {
+                font-size: 2.5rem !important;
+            }
+
+            .order-number {
+                font-size: 4rem !important;
+            }
+
+            .action-btn {
+                padding: 1rem !important;
+                font-size: 1.1rem !important;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white flex items-center justify-center h-screen">
+<div class="text-center max-w-md">
+    <h1 class="text-4xl font-bold mb-6">訂單成立</h1>
+    <p class="text-2xl mb-4">您的訂單編號是</p>
+    <p class="text-6xl font-bold text-green-500 mb-6">{{ order.sequence_number }}</p>
+    <p class="text-xl mb-8">請至櫃檯付款，謝謝！</p>
+
+    <div class="space-y-4">
+        <a href="/page5_order_status/?order_id={{ order.order_id }}"
+           class="inline-block w-full bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg font-bold">
+            查看訂單狀態
+        </a>
+        <a href="/"
+           class="inline-block w-full bg-gray-600 hover:bg-gray-500 text-white px-6 py-3 rounded-lg font-bold">
+            返回首頁
+        </a>
+    </div>
+</div>
+</body>
+</html>

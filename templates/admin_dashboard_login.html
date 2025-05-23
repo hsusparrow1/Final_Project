@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理後台登入</title>
+    <!-- 使用您原本的 Tailwind CSS 替代 Bootstrap -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .login-container {
+            background-color: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+        }
+        .error-message {
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center bg-[url('https://example.com/bg.jpg')] bg-cover bg-center">
+    <div class="login-container w-full max-w-md p-8 rounded-xl shadow-2xl">
+        <h2 class="text-2xl font-bold text-center text-gray-800 mb-6">管理後台登入</h2>
+
+        <!-- 錯誤訊息 (使用 Django 模板語法) -->
+        {% if error %}
+        <div class="error-message bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4 rounded">
+            <p>{{ error }}</p>
+        </div>
+        {% endif %}
+
+        <!-- 登入表單 (改為傳統表單提交方式) -->
+        <form method="POST" action="{% url 'admin_dashboard_auth' %}" class="space-y-6">
+            {% csrf_token %}
+
+            <div>
+                <label for="username" class="block text-sm font-medium text-gray-700 mb-1">管理員帳號</label>
+                <input
+                    type="text"
+                    id="username"
+                    name="username"
+                    required
+                    class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                    placeholder="輸入您的帳號"
+                >
+            </div>
+
+            <div>
+                <label for="password" class="block text-sm font-medium text-gray-700 mb-1">密碼</label>
+                <input
+                    type="password"
+                    id="password"
+                    name="password"
+                    required
+                    class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                    placeholder="輸入您的密碼"
+                >
+            </div>
+
+            <div class="flex items-center">
+                <input
+                    id="remember-me"
+                    name="remember-me"
+                    type="checkbox"
+                    class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                >
+                <label for="remember-me" class="ml-2 block text-sm text-gray-700">
+                    記住我
+                </label>
+            </div>
+
+            <button
+                type="submit"
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition duration-200 flex justify-center items-center"
+            >
+                <span id="login-text">登入</span>
+                <svg id="loading-spinner" class="hidden w-5 h-5 ml-2 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+            </button>
+        </form>
+
+        <!-- 頁腳 -->
+        <div class="mt-6 text-center text-sm text-gray-500">
+            <p>© 2023 Your Company. All rights reserved.</p>
+        </div>
+    </div>
+
+    <!-- 表單提交處理 -->
+    <script>
+        document.querySelector('form').addEventListener('submit', function(e) {
+            const btn = this.querySelector('button[type="submit"]');
+            const spinner = document.getElementById('loading-spinner');
+            const loginText = document.getElementById('login-text');
+
+            // 顯示載入狀態
+            btn.disabled = true;
+            loginText.textContent = '登入中...';
+            spinner.classList.remove('hidden');
+        });
+    </script>
+</body>
+</html>
