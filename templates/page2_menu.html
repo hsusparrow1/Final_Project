@@ -50,19 +50,33 @@
     const { useState, useEffect } = React;
 
     function App() {
-        // 添加一個分類選項 '會員專區'
+        // 定義分類順序
         const categories = ['三明治', '吐司', '貝果', '可頌', '沙拉', '甜品', '飲品', '套餐', '會員專區'];
-        
+
         // 初始化狀態變量
         const [items, setItems] = useState([]);
         const [selectedCategory, setSelectedCategory] = useState('全部');
         const [isAuthenticated, setIsAuthenticated] = useState(false);
         const [cartCount, setCartCount] = useState(0);
         const [totalPrice, setTotalPrice] = useState(0);
-        
-        // 過濾菜單項目
+
+        // 過濾菜單項目並排序
         const filteredItems = selectedCategory === '全部'
-            ? items
+            ? [...items].sort((a, b) => {
+                // 按照預設分類順序排序
+                const aIndex = categories.indexOf(a.category);
+                const bIndex = categories.indexOf(b.category);
+
+                // 會員專區項目放在最後
+                if (a.member_only && !b.member_only) return 1;
+                if (!a.member_only && b.member_only) return -1;
+
+                // 相同分類的項目保持原始順序
+                if (aIndex === bIndex) return 0;
+
+                // 按照分類順序排序
+                return aIndex - bIndex;
+            })
             : selectedCategory === '會員專區'
                 ? items.filter(item => item.member_only)
                 : items.filter(item => item.category === selectedCategory);
