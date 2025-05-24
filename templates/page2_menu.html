@@ -85,17 +85,28 @@
 
         // 在 useEffect 中獲取菜單數據和用戶登入狀態
         useEffect(() => {
-            async function fetchData() {
+            const loadData = async () => {
                 try {
-                    // 獲取菜單數據
+                    // 检查是否从购物车页面返回
+                    const fromCartPage = sessionStorage.getItem('fromCartPage');
+
+                    // 获取菜单数据
                     const menuResponse = await axios.get('/api/menu/');
                     const menuItems = menuResponse.data;
 
-                    // 獲取購物車數據
-                    const cartResponse = await axios.get('/api/get-cart/');
-                    const cartItems = cartResponse.data.items || [];
+                    // 获取购物车数据（优先使用本地最新数据）
+                    let cartItems = [];
+                    if (fromCartPage) {
+                        // 从购物车返回时，优先使用本地存储
+                        cartItems = JSON.parse(sessionStorage.getItem('cartItems')) || [];
+                        sessionStorage.removeItem('fromCartPage');
+                    } else {
+                        // 正常加载时，从服务器获取
+                        const cartResponse = await axios.get('/api/get-cart/');
+                        cartItems = cartResponse.data.items || [];
+                    }
 
-                    // 合併菜單和購物車數據
+                    // 合并数据
                     const mergedItems = menuItems.map(menuItem => {
                         const cartItem = cartItems.find(item => item.id === menuItem.id);
                         return {
@@ -104,20 +115,25 @@
                         };
                     });
 
-                    setItems(mergedItems);
+                    const sortedItems = mergedItems.sort((a, b) => a.price - b.price);
 
-                    // 計算購物車總數和總價
+                    setItems(mergedItems);
                     updateCartSummary(mergedItems);
 
-                    // 獲取用戶登入狀態
+                    // 同步到后端确保一致性
+                    await axios.post('/api/save-cart/', {
+                        items: mergedItems.filter(item => item.count > 0)
+                    }).catch(e => console.error(e));
+
+                    // 检查登录状态
                     const authResponse = await axios.get('/api/check-auth/');
                     setIsAuthenticated(authResponse.data.is_authenticated);
                 } catch (error) {
-                    console.error('獲取數據失敗:', error);
+                    console.error('加载数据失败:', error);
                 }
-            }
+            };
 
-            fetchData();
+            loadData();
         }, []);
 
         // 更新購物車摘要

@@ -156,27 +156,61 @@ def check_auth(request):
 
 @csrf_exempt
 def save_cart(request):
-    """
-    儲存購物車內容至 session
-    
-    POST 請求參數:
-    - items: 購物車項目列表
-    """
+    """增强版购物车保存"""
     if request.method == 'POST':
-        data = json.loads(request.body)
-        request.session['cart_items'] = data['items']
-        return JsonResponse({'message': 'Cart saved successfully!'})
+        try:
+            data = json.loads(request.body)
+            # 确保数据格式正确
+            if not isinstance(data.get('items', None), list):
+                raise ValueError("Invalid items format")
+
+            # 验证每个商品是否存在
+            valid_items = []
+            for item in data['items']:
+                if MenuItem.objects.filter(id=item.get('id')).exists():
+                    valid_items.append({
+                        'id': item['id'],
+                        'count': max(0, int(item.get('count', 0)))  # 确保非负
+                    })
+
+            # 保存到session
+            request.session['cart_items'] = valid_items
+            request.session.modified = True
+
+            # 同时保存到数据库（如果需要）
+            if request.user.is_authenticated:
+                profile, _ = UserProfile.objects.get_or_create(user=request.user)
+                profile.cart_items = json.dumps(valid_items)
+                profile.save()
+
+            return JsonResponse({'success': True, 'items': valid_items})
+        except Exception as e:
+            logger.error(f"保存购物车失败: {str(e)}")
+            return JsonResponse({'success': False, 'error': str(e)}, status=400)
+    return JsonResponse({'error': 'Invalid method'}, status=405)
 
 
 def get_cart(request):
-    """
-    從 session 獲取購物車內容
-    
-    返回:
-    - items: 購物車項目列表
-    """
-    cart_items = request.session.get('cart_items', [])
-    return JsonResponse({'items': cart_items})
+    """增强版获取购物车"""
+    try:
+        # 优先从session获取
+        cart_items = request.session.get('cart_items', [])
+
+        # 如果session为空但用户已登录，尝试从数据库获取
+        if not cart_items and request.user.is_authenticated:
+            try:
+                profile = UserProfile.objects.get(user=request.user)
+                if profile.cart_items:
+                    cart_items = json.loads(profile.cart_items)
+                    request.session['cart_items'] = cart_items
+                    request.session.modified = True
+            except UserProfile.DoesNotExist:
+                pass
+
+        return JsonResponse({'success': True, 'items': cart_items})
+    except Exception as e:
+        logger.error(f"获取购物车失败: {str(e)}")
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)
 
 
 # =============================================================================

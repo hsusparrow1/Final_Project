@@ -7,51 +7,69 @@
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
-    @media (max-width: 640px) {
-      /* 調整分類按鈕 */
-      .category-btn {
-        padding: 0.5rem 1rem !important;
-        font-size: 0.9rem !important;
-      }
+        @media (max-width: 640px) {
+            .category-btn {
+                padding: 0.5rem 1rem !important;
+                font-size: 0.9rem !important;
+            }
 
-      /* 調整商品卡片 */
-      .product-card {
-        padding: 1rem !important;
-      }
+            .product-card {
+                padding: 1rem !important;
+            }
 
-      /* 調整商品名稱字體 */
-      .product-name {
-        font-size: 1.1rem !important;
-      }
+            .product-name {
+                font-size: 1.1rem !important;
+            }
 
-      /* 調整價格字體 */
-      .product-price {
-        font-size: 1.2rem !important;
-      }
+            .product-price {
+                font-size: 1.2rem !important;
+            }
 
-      /* 調整底部結帳欄 */
-      .checkout-bar {
-        padding: 1rem !important;
-      }
-    }
-  </style>
+            .checkout-bar {
+                padding: 1rem !important;
+            }
+        }
+
+        @keyframes fade-in {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .animate-fade-in {
+            animation: fade-in 0.3s ease-out;
+        }
+    </style>
 </head>
 <body class="bg-gray-900 text-white">
 
 <div id="root"></div>
 
-<!-- 引入 React / ReactDOM -->
 <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-<!-- React 程式 -->
 <script type="text/babel">
     const {useState, useEffect} = React;
 
     function ShoppingCart() {
         const [cartItems, setCartItems] = useState([]);
         const [isSyncing, setIsSyncing] = useState(true);
+
+        // 按价格升序排序函数
+        const sortByPrice = (items) => {
+            return [...items].sort((a, b) => {
+                // 主要按价格排序
+                if (a.price !== b.price) return a.price - b.price;
+                // 价格相同则按ID排序
+                return a.id - b.id;
+            });
+        };
 
         // 同步購物車數據
         const syncCartData = async () => {
@@ -72,10 +90,10 @@
                         : [...acc, serverItem];
                 }, JSON.parse(sessionStorage.getItem('cartItems')) || []);
 
-                // 過濾有效項目並排序
-                const validCart = mergedCart
-                    .filter(item => item.count > 0)
-                    .sort((a, b) => a.id - b.id);
+                // 過濾有效項目並按價格排序
+                const validCart = sortByPrice(
+                    mergedCart.filter(item => item.count > 0)
+                );
 
                 setCartItems(validCart);
                 sessionStorage.setItem('cartItems', JSON.stringify(validCart));
@@ -89,7 +107,6 @@
 
         useEffect(() => {
             const handleBeforeUnload = async () => {
-                // 在頁面卸載前強制同步
                 await axios.post('/api/save-cart/', {items: cartItems});
                 sessionStorage.setItem('cartItems', JSON.stringify(cartItems));
             };
@@ -102,43 +119,44 @@
             };
         }, []);
 
-        // 更新商品數量
+        // 更新商品數量 (自動排序)
         const updateItemCount = async (itemId, newCount) => {
             if (newCount < 1) return;
 
-            const updatedItems = cartItems
-                .map(item => item.id === itemId ? {...item, count: newCount} : item)
-                .filter(item => item.count > 0);
+            const updatedItems = sortByPrice(
+                cartItems
+                    .map(item => item.id === itemId ? {...item, count: newCount} : item)
+                    .filter(item => item.count > 0)
+            );
 
             setCartItems(updatedItems);
-
-            // 立即更新本地存儲
             sessionStorage.setItem('cartItems', JSON.stringify(updatedItems));
-
-            // 異步更新後端
             axios.post('/api/save-cart/', {items: updatedItems});
         };
 
-        // 刪除商品
+        // 刪除商品 (自動排序)
         const removeItem = async (itemId) => {
-            const updatedItems = cartItems.filter(item => item.id !== itemId);
-            setCartItems(updatedItems);
+            const updatedItems = sortByPrice(
+                cartItems.filter(item => item.id !== itemId)
+            );
 
+            setCartItems(updatedItems);
             sessionStorage.setItem('cartItems', JSON.stringify(updatedItems));
             await axios.post('/api/save-cart/', {items: updatedItems});
         };
 
         // 處理返回按鈕
         const handleBackToMenu = async () => {
-            // 顯示加載狀態
             setIsSyncing(true);
-
-            // 確保數據完全同步
-            await axios.post('/api/save-cart/', {items: cartItems});
-            sessionStorage.setItem('returningFromCart', 'true');
-
-            // 導向頁面
-            window.location.href = '/page2_menu/';
+            try {
+                sessionStorage.setItem('cartItems', JSON.stringify(cartItems));
+                sessionStorage.setItem('fromCartPage', 'true');
+                await axios.post('/api/save-cart/', {items: cartItems});
+                window.location.href = '/page2_menu/';
+            } catch (error) {
+                console.error('返回菜單失敗:', error);
+                setIsSyncing(false);
+            }
         };
 
         // 訂單提交處理
@@ -152,7 +170,6 @@
                 });
 
                 if (response.data.success) {
-                    // 清除所有購物車數據
                     localStorage.removeItem('orderType');
                     sessionStorage.removeItem('cartItems');
                     await axios.post('/api/save-cart/', {items: []});
@@ -171,7 +188,7 @@
                 {/* 同步遮罩 */}
                 {isSyncing && (
                     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                        <div className="text-xl font-bold animate-pulse">數據同步中...</div>
+                        <div className="text-xl font-bold animate-pulse"></div>
                     </div>
                 )}
 
@@ -179,7 +196,7 @@
 
                 {cartItems.length === 0 ? (
                     <div className="text-center py-8 space-y-4">
-                        <p className="text-xl">🛒 您的購物車是空的</p>
+                        <p className="text-xl">您的購物車是空的</p>
                         <button
                             onClick={handleBackToMenu}
                             className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg font-bold text-lg"
@@ -264,22 +281,5 @@
 
     ReactDOM.createRoot(document.getElementById('root')).render(<ShoppingCart/>);
 </script>
-
-<style>
-    @keyframes fade-in {
-        from {
-            opacity: 0;
-            transform: translateY(10px);
-        }
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
-    }
-
-    .animate-fade-in {
-        animation: fade-in 0.3s ease-out;
-    }
-</style>
 </body>
 </html>
