@@ -139,20 +139,37 @@
         const response = await axios.get('/api/orders/');
         const orders = response.data;
 
+        console.log('訂單數據:', orders);
+
         // 分類訂單
         const currentOrders = orders.filter(order => order.status === '已送單' || order.status === '製作中');
         const completedOrders = orders.filter(order => order.status === '完成');
+
+        // 格式化時間的函數
+        function formatDateTime(isoString) {
+            const date = new Date(isoString);
+            return date.toLocaleString('zh-TW', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false
+            });
+        }
 
         // 渲染現有訂單
         const currentOrdersDiv = document.getElementById('current-orders');
         currentOrdersDiv.innerHTML = currentOrders.map(order => `
             <div class="bg-gray-800 p-4 rounded-lg">
                 <p><strong>流水號：</strong>${order.sequence_number}</p>
-                <p><strong>訂單編號：</strong>${order.order_id}</p>
+                <p><strong>建立時間：</strong>${formatDateTime(order.created_at)}</p>
                 <p><strong>類型：</strong>${order.order_type}</p>
-                <p><strong>總價：</strong>${order.total_price}</p>
-                <p><strong>建立時間：</strong>${order.created_at}</p>
                 <p><strong>狀態：</strong>${order.status || '未知'}</p>
+                <p><strong>餐點內容：</strong>${order.items.map(item => `${item.name}x${item.quantity}`).join('、')}</p>
+                <p><strong>總價：</strong>${order.total_price}</p>
+                <p><strong>訂單編號：</strong>${order.order_id}</p>
                 <div class="mt-2 space-x-2">
                     ${order.status === '已送單' ? `
                         <button class="bg-yellow-500 px-4 py-2 rounded" onclick="updateOrderStatus('${order.order_id}', '製作中')">標記為製作中</button>
@@ -170,11 +187,12 @@
         completedOrdersDiv.innerHTML = completedOrders.map(order => `
             <div class="bg-gray-800 p-4 rounded-lg">
                 <p><strong>流水號：</strong>${order.sequence_number}</p>
-                <p><strong>訂單編號：</strong>${order.order_id}</p>
+                <p><strong>建立時間：</strong>${formatDateTime(order.created_at)}</p>
                 <p><strong>類型：</strong>${order.order_type}</p>
-                <p><strong>總價：</strong>${order.total_price}</p>
-                <p><strong>建立時間：</strong>${order.created_at}</p>
                 <p><strong>狀態：</strong>${order.status || '未知'}</p>
+                <p><strong>餐點內容：</strong>${order.items.map(item => `${item.name}x${item.quantity}`).join('、')}</p>
+                <p><strong>總價：</strong>${order.total_price}</p>
+                <p><strong>訂單編號：</strong>${order.order_id}</p>
             </div>
         `).join('');
     }
