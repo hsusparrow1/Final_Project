@@ -7,34 +7,34 @@
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
-    @media (max-width: 640px) {
-      /* 調整分類按鈕 */
-      .category-btn {
-        padding: 0.5rem 1rem !important;
-        font-size: 0.9rem !important;
-      }
+        @media (max-width: 640px) {
+            /* 調整分類按鈕 */
+            .category-btn {
+                padding: 0.5rem 1rem !important;
+                font-size: 0.9rem !important;
+            }
 
-      /* 調整商品卡片 */
-      .product-card {
-        padding: 1rem !important;
-      }
+            /* 調整商品卡片 */
+            .product-card {
+                padding: 1rem !important;
+            }
 
-      /* 調整商品名稱字體 */
-      .product-name {
-        font-size: 1.1rem !important;
-      }
+            /* 調整商品名稱字體 */
+            .product-name {
+                font-size: 1.1rem !important;
+            }
 
-      /* 調整價格字體 */
-      .product-price {
-        font-size: 1.2rem !important;
-      }
+            /* 調整價格字體 */
+            .product-price {
+                font-size: 1.2rem !important;
+            }
 
-      /* 調整底部結帳欄 */
-      .checkout-bar {
-        padding: 1rem !important;
-      }
-    }
-  </style>
+            /* 調整底部結帳欄 */
+            .checkout-bar {
+                padding: 1rem !important;
+            }
+        }
+    </style>
 </head>
 <body class="bg-gray-900 text-white">
 
@@ -72,10 +72,10 @@
                         : [...acc, serverItem];
                 }, JSON.parse(sessionStorage.getItem('cartItems')) || []);
 
-                // 過濾有效項目並排序
+                // 過濾有效項目並按價格排序 (從高到低)
                 const validCart = mergedCart
                     .filter(item => item.count > 0)
-                    .sort((a, b) => a.id - b.id);
+                    .sort((a, b) => a.price - b.price);  // 修改這裡，改為按價格排序
 
                 setCartItems(validCart);
                 sessionStorage.setItem('cartItems', JSON.stringify(validCart));
