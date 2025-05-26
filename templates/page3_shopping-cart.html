@@ -7,76 +7,63 @@
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
-    @media (max-width: 640px) {
-      /* 調整分類按鈕 */
-      .category-btn {
-        padding: 0.5rem 1rem !important;
-        font-size: 0.9rem !important;
-      }
+        @media (max-width: 640px) {
+            .category-btn {
+                padding: 0.5rem 1rem !important;
+                font-size: 0.9rem !important;
+            }
 
-      /* 調整商品卡片 */
-      .product-card {
-        padding: 1rem !important;
-      }
+            .product-card {
+                padding: 1rem !important;
+            }
 
-      /* 調整商品名稱字體 */
-      .product-name {
-        font-size: 1.1rem !important;
-      }
+            .product-name {
+                font-size: 1.1rem !important;
+            }
 
-      /* 調整價格字體 */
-      .product-price {
-        font-size: 1.2rem !important;
-      }
+            .product-price {
+                font-size: 1.2rem !important;
+            }
 
-      /* 調整底部結帳欄 */
-      .checkout-bar {
-        padding: 1rem !important;
-      }
-    }
-  </style>
+            .checkout-bar {
+                padding: 1rem !important;
+            }
+        }
+    </style>
 </head>
 <body class="bg-gray-900 text-white">
 
 <div id="root"></div>
 
-<!-- 引入 React / ReactDOM -->
 <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-<!-- React 程式 -->
 <script type="text/babel">
     const {useState, useEffect} = React;
 
     function ShoppingCart() {
         const [cartItems, setCartItems] = useState([]);
         const [isSyncing, setIsSyncing] = useState(true);
+        const [coupons, setCoupons] = useState([]);
+        const [selectedCoupon, setSelectedCoupon] = useState(null);
 
-        // 同步購物車數據
         const syncCartData = async () => {
             try {
-                // 同步後端數據
                 const serverResponse = await axios.get('/api/get-cart/');
                 const serverCart = serverResponse.data.items || [];
 
-                // 合併本地和伺服器數據
                 const mergedCart = serverCart.reduce((acc, serverItem) => {
                     const existingItem = acc.find(i => i.id === serverItem.id);
                     return existingItem
-                        ? acc.map(item =>
-                            item.id === serverItem.id
-                                ? {...item, count: Math.max(item.count, serverItem.count)}
-                                : item
-                        )
+                        ? acc.map(item => item.id === serverItem.id ? {
+                            ...item,
+                            count: Math.max(item.count, serverItem.count)
+                        } : item)
                         : [...acc, serverItem];
                 }, JSON.parse(sessionStorage.getItem('cartItems')) || []);
 
-                // 過濾有效項目並排序
-                const validCart = mergedCart
-                    .filter(item => item.count > 0)
-                    .sort((a, b) => a.id - b.id);
-
+                const validCart = mergedCart.filter(item => item.count > 0).sort((a, b) => a.id - b.id);
                 setCartItems(validCart);
                 sessionStorage.setItem('cartItems', JSON.stringify(validCart));
                 await axios.post('/api/save-cart/', {items: validCart});
@@ -89,20 +76,17 @@
 
         useEffect(() => {
             const handleBeforeUnload = async () => {
-                // 在頁面卸載前強制同步
                 await axios.post('/api/save-cart/', {items: cartItems});
                 sessionStorage.setItem('cartItems', JSON.stringify(cartItems));
             };
 
             window.addEventListener('beforeunload', handleBeforeUnload);
             syncCartData();
+            axios.get('/api/get-coupons/').then(res => setCoupons(res.data));
 
-            return () => {
-                window.removeEventListener('beforeunload', handleBeforeUnload);
-            };
+            return () => window.removeEventListener('beforeunload', handleBeforeUnload);
         }, []);
 
-        // 更新商品數量
         const updateItemCount = async (itemId, newCount) => {
             if (newCount < 1) return;
 
@@ -111,48 +95,35 @@
                 .filter(item => item.count > 0);
 
             setCartItems(updatedItems);
-
-            // 立即更新本地存儲
             sessionStorage.setItem('cartItems', JSON.stringify(updatedItems));
-
-            // 異步更新後端
             axios.post('/api/save-cart/', {items: updatedItems});
         };
 
-        // 刪除商品
         const removeItem = async (itemId) => {
             const updatedItems = cartItems.filter(item => item.id !== itemId);
             setCartItems(updatedItems);
-
             sessionStorage.setItem('cartItems', JSON.stringify(updatedItems));
             await axios.post('/api/save-cart/', {items: updatedItems});
         };
 
-        // 處理返回按鈕
         const handleBackToMenu = async () => {
-            // 顯示加載狀態
             setIsSyncing(true);
-
-            // 確保數據完全同步
             await axios.post('/api/save-cart/', {items: cartItems});
             sessionStorage.setItem('returningFromCart', 'true');
-
-            // 導向頁面
             window.location.href = '/page2_menu/';
         };
 
-        // 訂單提交處理
         const handleSubmitOrder = async () => {
             setIsSyncing(true);
             try {
                 const orderType = localStorage.getItem('orderType');
                 const response = await axios.post('/api/submit-order/', {
                     type: orderType,
-                    items: cartItems
+                    items: cartItems,
+                    coupon_code: selectedCoupon ? selectedCoupon.code : null
                 });
 
                 if (response.data.success) {
-                    // 清除所有購物車數據
                     localStorage.removeItem('orderType');
                     sessionStorage.removeItem('cartItems');
                     await axios.post('/api/save-cart/', {items: []});
@@ -164,11 +135,16 @@
         };
 
         const totalCount = cartItems.reduce((sum, item) => sum + item.count, 0);
-        const totalPrice = cartItems.reduce((sum, item) => sum + (item.price * item.count), 0);
+        const calculateTotal = () => {
+            let total = cartItems.reduce((sum, item) => sum + (item.price * item.count), 0);
+            if (selectedCoupon) {
+                total = Math.max(0, total - parseInt(selectedCoupon.coupon_type));
+            }
+            return total.toFixed(2);
+        };
 
         return (
             <div className="p-4 pb-32 relative">
-                {/* 同步遮罩 */}
                 {isSyncing && (
                     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
                         <div className="text-xl font-bold animate-pulse">數據同步中...</div>
@@ -236,9 +212,32 @@
                                 <span>商品數量</span>
                                 <span className="font-bold">{totalCount} 項</span>
                             </div>
+
+                            <div className="border-t border-gray-700 pt-3 mt-3">
+                                <div className="flex items-center justify-between mb-2">
+                                    <span>使用折價券:</span>
+                                    <select
+                                        onChange={(e) => setSelectedCoupon(coupons.find(c => c.code === e.target.value))}
+                                        className="bg-gray-700 rounded px-2 py-1"
+                                    >
+                                        <option value="">不使用</option>
+                                        {coupons.map(coupon => (
+                                            <option key={coupon.code} value={coupon.code}>
+                                                {coupon.get_coupon_type_display}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                {selectedCoupon && (
+                                    <div className="text-green-400 text-right">
+                                        已套用: -${selectedCoupon.coupon_type}元
+                                    </div>
+                                )}
+                            </div>
+
                             <div className="flex justify-between items-center mb-4 text-xl">
-                                <span>總金額</span>
-                                <span className="font-bold text-green-400">${totalPrice.toFixed(2)}</span>
+                                <span>折扣後總金額</span>
+                                <span className="font-bold text-green-400">${calculateTotal()}</span>
                             </div>
 
                             <div className="grid grid-cols-2 gap-3">

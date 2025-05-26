@@ -8,28 +8,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
         @media (max-width: 640px) {
-            /* 調整分類按鈕 */
             .category-btn {
                 padding: 0.5rem 1rem !important;
                 font-size: 0.9rem !important;
             }
 
-            /* 調整商品卡片 */
             .product-card {
                 padding: 1rem !important;
             }
 
-            /* 調整商品名稱字體 */
             .product-name {
                 font-size: 1.1rem !important;
             }
 
-            /* 調整價格字體 */
             .product-price {
                 font-size: 1.2rem !important;
             }
 
-            /* 調整底部結帳欄 */
             .checkout-bar {
                 padding: 1rem !important;
             }
@@ -37,10 +32,9 @@
     </style>
 </head>
 <body class="bg-gray-900 text-white">
-
 <div id="root"></div>
 
-<!-- 引入 React / ReactDOM -->
+<!-- React/ReactDOM -->
 <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -50,54 +44,35 @@
     const {useState, useEffect} = React;
 
     function App() {
-        // 定義分類順序
         const categories = ['三明治', '吐司', '貝果', '可頌', '沙拉', '甜品', '飲品', '套餐', '會員專區'];
-
-        // 初始化狀態變量
         const [items, setItems] = useState([]);
         const [selectedCategory, setSelectedCategory] = useState('全部');
         const [isAuthenticated, setIsAuthenticated] = useState(false);
         const [cartCount, setCartCount] = useState(0);
         const [totalPrice, setTotalPrice] = useState(0);
 
-        // 過濾菜單項目並排序
         const filteredItems = selectedCategory === '全部'
             ? [...items].sort((a, b) => {
-                // 會員專區項目放在最後
                 if (a.member_only && !b.member_only) return 1;
                 if (!a.member_only && b.member_only) return -1;
-
-                // 按照預設分類順序排序
                 const aIndex = categories.indexOf(a.category);
                 const bIndex = categories.indexOf(b.category);
-
-                // 如果分類相同，則按照價格排序
-                if (aIndex === bIndex) {
-                    return a.price - b.price; // 升序排列
-                }
-
-                // 按照分類順序排序
-                return aIndex - bIndex;
+                return aIndex === bIndex ? a.price - b.price : aIndex - bIndex;
             })
             : selectedCategory === '會員專區'
-                ? [...items.filter(item => item.member_only)].sort((a, b) => a.price - b.price)
-                : [...items.filter(item => item.category === selectedCategory)].sort((a, b) => a.price - b.price);
+                ? items.filter(i => i.member_only).sort((a, b) => a.price - b.price)
+                : items.filter(i => i.category === selectedCategory).sort((a, b) => a.price - b.price);
 
-        // 在 useEffect 中獲取菜單數據和用戶登入狀態
         useEffect(() => {
             async function fetchData() {
                 try {
-                    // 獲取菜單數據
-                    const menuResponse = await axios.get('/api/menu/');
-                    const menuItems = menuResponse.data;
+                    const menuRes = await axios.get('/api/menu/');
+                    const cartRes = await axios.get('/api/get-cart/');
+                    const menuItems = menuRes.data;
+                    const cartItems = cartRes.data.items || [];
 
-                    // 獲取購物車數據
-                    const cartResponse = await axios.get('/api/get-cart/');
-                    const cartItems = cartResponse.data.items || [];
-
-                    // 合併菜單和購物車數據
                     const mergedItems = menuItems.map(menuItem => {
-                        const cartItem = cartItems.find(item => item.id === menuItem.id);
+                        const cartItem = cartItems.find(i => i.id === menuItem.id);
                         return {
                             ...menuItem,
                             count: cartItem ? cartItem.count : 0
@@ -105,13 +80,10 @@
                     });
 
                     setItems(mergedItems);
-
-                    // 計算購物車總數和總價
                     updateCartSummary(mergedItems);
 
-                    // 獲取用戶登入狀態
-                    const authResponse = await axios.get('/api/check-auth/');
-                    setIsAuthenticated(authResponse.data.is_authenticated);
+                    const authRes = await axios.get('/api/check-auth/');
+                    setIsAuthenticated(authRes.data.is_authenticated);
                 } catch (error) {
                     console.error('獲取數據失敗:', error);
                 }
@@ -120,129 +92,120 @@
             fetchData();
         }, []);
 
-        // 更新購物車摘要
+        // 🔸 取得評分資料並合併
+        useEffect(() => {
+            axios.get('/api/menu-ratings/')
+                .then(response => {
+                    const ratings = response.data.reduce((acc, item) => {
+                        acc[item.id] = item.avg_rating;
+                        return acc;
+                    }, {});
+                    setItems(prev =>
+                        prev.map(item => ({
+                            ...item,
+                            rating: ratings[item.id] || null
+                        }))
+                    );
+                })
+                .catch(error => {
+                    console.error('取得評分失敗:', error);
+                });
+        }, []);
+
         const updateCartSummary = (currentItems) => {
-            const count = currentItems.reduce((sum, item) => sum + item.count, 0);
-            const price = currentItems.reduce((sum, item) => sum + (item.price * item.count), 0);
+            const count = currentItems.reduce((sum, i) => sum + i.count, 0);
+            const price = currentItems.reduce((sum, i) => sum + i.count * i.price, 0);
             setCartCount(count);
             setTotalPrice(price);
         };
 
-        // 更新購物車
         const updateCart = (newItems) => {
             setItems(newItems);
             updateCartSummary(newItems);
-
-            // 保存到 session storage 和後端
-            const cartItems = newItems.filter(item => item.count > 0);
+            const cartItems = newItems.filter(i => i.count > 0);
             sessionStorage.setItem('cartItems', JSON.stringify(cartItems));
             axios.post('/api/save-cart/', {items: cartItems});
         };
 
-        // 減少商品數量
-        const decrease = (itemId) => {
-            updateCart(
-                items.map(item =>
-                    item.id === itemId && item.count > 0
-                        ? {...item, count: item.count - 1}
-                        : item
-                )
-            );
+        const decrease = (id) => {
+            updateCart(items.map(i =>
+                i.id === id && i.count > 0 ? {...i, count: i.count - 1} : i
+            ));
         };
 
-        // 增加商品數量
-        const increase = (itemId, soldOut, memberOnly) => {
-            if (soldOut) {
-                alert('此商品已售完，無法加入購物車！');
-                return;
-            }
-            if (memberOnly && !isAuthenticated) {
-                alert('此商品僅限會員購買，請先登入或註冊會員！');
-                return;
-            }
-            updateCart(
-                items.map(item =>
-                    item.id === itemId ? {...item, count: item.count + 1} : item
-                )
-            );
+        const increase = (id, soldOut, memberOnly) => {
+            if (soldOut) return alert('此商品已售完，無法加入購物車！');
+            if (memberOnly && !isAuthenticated) return alert('此商品僅限會員購買，請先登入或註冊會員！');
+            updateCart(items.map(i =>
+                i.id === id ? {...i, count: i.count + 1} : i
+            ));
         };
 
-        // 前往購物車頁面
-        const goToCart = () => {
-            window.location.href = '/page3_shopping_cart/';
-        };
+        const goToCart = () => window.location.href = '/page3_shopping_cart/';
 
         return (
             <div>
-                {/* 分類選擇區 */}
+                {/* 分類按鈕 */}
                 <div className="flex overflow-x-auto p-4 space-x-2 bg-gray-800">
                     <button
                         onClick={() => setSelectedCategory('全部')}
-                        className={`px-4 py-2 rounded-full whitespace-nowrap ${
-                            selectedCategory === '全部' ? 'bg-blue-500 text-white' : 'bg-gray-700'
-                        }`}
-                    >
-                        全部
+                        className={`px-4 py-2 rounded-full whitespace-nowrap ${selectedCategory === '全部' ? 'bg-blue-500 text-white' : 'bg-gray-700'}`}
+                    >全部
                     </button>
                     {categories.map(category => (
                         <button
                             key={category}
                             onClick={() => setSelectedCategory(category)}
-                            className={`px-4 py-2 rounded-full whitespace-nowrap ${
-                                selectedCategory === category ? 'bg-blue-500 text-white' : 'bg-gray-700'
-                            }`}
-                        >
-                            {category}
-                        </button>
+                            className={`px-4 py-2 rounded-full whitespace-nowrap ${selectedCategory === category ? 'bg-blue-500 text-white' : 'bg-gray-700'}`}
+                        >{category}</button>
                     ))}
                 </div>
 
-                {/* 商品區域 */}
+                {/* 商品清單 */}
                 <div className="grid grid-cols-2 gap-4 p-4 pb-24">
                     {filteredItems.map(item => (
                         <div key={item.id}
                              className={`bg-white rounded-lg p-4 text-black flex flex-col items-center ${item.member_only ? 'border-2 border-yellow-500' : ''}`}>
                             {item.image && <img src={item.image} alt={item.name}
                                                 className="w-full h-32 object-cover rounded mb-2"/>}
-
                             <div className="font-bold text-center">{item.name}</div>
                             <div className="text-gray-600 text-sm mb-1 text-center">{item.description}</div>
                             <div className="font-bold">$ {item.price}</div>
 
-                            {/* 添加會員專區標記 */}
+                            {/* 顯示平均評分 */}
+                            {item.rating && (
+                                <div className="flex items-center mt-1">
+                                    <span className="text-yellow-400 mr-1">★</span>
+                                    <span>{item.rating.toFixed(1)}</span>
+                                </div>
+                            )}
+
                             {item.member_only && (
                                 <div className="text-yellow-500 font-bold mt-1">會員專區</div>
                             )}
-
-                            {/* 顯示已售完標籤 */}
                             {item.sold_out && (
                                 <div className="text-red-500 font-bold mt-2">已售完</div>
                             )}
-
                             <div className="flex items-center mt-2 space-x-2">
                                 <button
                                     onClick={() => decrease(item.id)}
                                     disabled={item.count === 0}
                                     className="bg-gray-300 px-3 py-1 rounded-full disabled:opacity-50"
-                                >
-                                    -
+                                >-
                                 </button>
                                 <span className="text-xl">{item.count}</span>
                                 <button
                                     onClick={() => increase(item.id, item.sold_out, item.member_only)}
                                     disabled={item.sold_out}
-                                    className={`px-3 py-1 rounded-full ${
-                                        item.sold_out ? 'bg-gray-300 cursor-not-allowed' : 'bg-gray-300'
-                                    }`}
-                                >
-                                    +
+                                    className={`px-3 py-1 rounded-full ${item.sold_out ? 'bg-gray-300 cursor-not-allowed' : 'bg-gray-300'}`}
+                                >+
                                 </button>
                             </div>
                         </div>
                     ))}
                 </div>
 
-                {/* 底部結帳列 */}
+                {/* 結帳列 */}
                 <div className="fixed bottom-0 left-0 right-0 bg-gray-800 p-4 flex justify-between items-center">
                     <div className="flex-1">
                         <div className="text-lg"><span className="font-bold">{cartCount}</span> 項</div>
@@ -251,11 +214,8 @@
                     <button
                         onClick={goToCart}
                         disabled={cartCount === 0}
-                        className={`px-6 py-3 rounded-lg font-bold text-white ${
-                            cartCount === 0 ? 'bg-gray-600 opacity-50' : 'bg-green-500'
-                        }`}
-                    >
-                        查看購物車
+                        className={`px-6 py-3 rounded-lg font-bold text-white ${cartCount === 0 ? 'bg-gray-600 opacity-50' : 'bg-green-500'}`}
+                    >查看購物車
                     </button>
                 </div>
             </div>

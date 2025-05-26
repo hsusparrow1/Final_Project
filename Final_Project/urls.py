@@ -49,6 +49,10 @@ urlpatterns = [
     # 保護的管理後台主頁（需要登入）
     path('admin_dashboard/', login_required(admin_dashboard, login_url='/admin_dashboard/login/'),
          name='admin_dashboard'),
+    path('page6_feedback/', views.page6_feedback, name='page6_feedback'),
+    path('api/submit-feedback/', views.submit_feedback, name='submit_feedback'),
+    path('api/get-coupons/', views.get_user_coupons, name='get_coupons'),
+    path('api/menu-ratings/', views.get_menu_ratings, name='menu_ratings'),
 ]
 
 # 在開發環境中提供媒體文件服務
