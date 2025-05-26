@@ -82,6 +82,13 @@
         <!-- 內容由JS動態載入 -->
     </div>
 
+    <!-- 評價按鈕 (初始隱藏) -->
+    <div id="feedback-button" class="hidden max-w-md mx-auto mb-8">
+        <a id="go-to-feedback" href="#" class="w-full bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-lg font-bold text-center block">
+            評價訂單並抽獎
+        </a>
+    </div>
+
     <!-- 自動刷新提示 -->
     <div class="text-center text-gray-400 text-sm mb-8">
         <p>此頁面將自動更新訂單狀態...</p>
@@ -173,6 +180,14 @@
             if (order.status === '完成') {
                 clearInterval(refreshInterval);
                 document.querySelector('.text-gray-400').textContent = '此訂單已完成';
+
+                // 顯示評價按鈕
+                const feedbackButton = document.getElementById('feedback-button');
+                feedbackButton.classList.remove('hidden');
+
+                // 設置按鈕連結
+                document.getElementById('go-to-feedback').href =
+                    `/page6_feedback/?order_id=${orderId}`;
             }
         } catch (error) {
             console.error('載入訂單失敗:', error);

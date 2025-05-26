@@ -3,7 +3,7 @@
 # =============================================================================
 # Django 相關導入
 import uuid
-from datetime import timezone
+from django.utils import timezone
 
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.shortcuts import render, get_object_or_404
