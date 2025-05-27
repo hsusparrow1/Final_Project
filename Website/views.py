@@ -6,24 +6,21 @@ import uuid
 from django.utils import timezone
 
 from django.contrib.auth.decorators import login_required, user_passes_test
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.db import transaction, connection
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
-from django.shortcuts import redirect
 
-from .models import UserProfile, Feedback, Coupon
+# 專案模型與序列化器導入
+from .models import UserProfile, Feedback, Coupon, MenuItem, Order, OrderItem
+from .serializers import MenuItemSerializer, CouponSerializer
 
 # REST Framework 相關導入
 from rest_framework import generics, status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-
-# 專案模型與序列化器導入
-from .models import MenuItem, Order, OrderItem
-from .serializers import MenuItemSerializer, CouponSerializer
 
 # 其他標準庫導入
 import json
@@ -42,11 +39,8 @@ def page0(request):
     return render(request, 'page0_login.html')
 
 
-# 登入處理視圖
 def login_view(request):
-    """
-    處理用戶登入
-    """
+    """處理用戶登入"""
     if request.method == 'POST':
         username = request.POST.get('username')
         password = request.POST.get('password')
@@ -54,17 +48,14 @@ def login_view(request):
         user = authenticate(request, username=username, password=password)
         if user is not None:
             login(request, user)
-            return redirect('page1')  # 修改此處，原本是 'home'
+            return redirect('page1')
         else:
-            return render(request, 'page0_login.html', {'error_message': '用戶名或密碼不正確'})  # 修改此處，原本是 'page0.html'
+            return render(request, 'page0_login.html', {'error_message': '用戶名或密碼不正確'})
     return redirect('page0')
 
 
-# 添加註冊處理視圖
 def register_view(request):
-    """
-    處理用戶註冊
-    """
+    """處理用戶註冊"""
     if request.method == 'POST':
         username = request.POST.get('username')
         email = request.POST.get('email')
@@ -94,11 +85,8 @@ def register_view(request):
     return redirect('page0')
 
 
-# 添加登出處理視圖
 def logout_view(request):
-    """
-    處理用戶登出
-    """
+    """處理用戶登出"""
     logout(request)
     return redirect('home')
 
@@ -130,21 +118,23 @@ def page5_order_status(request):
     return render(request, 'page5_order_status.html')
 
 
+def page6_feedback(request):
+    """評價與優惠頁面"""
+    return render(request, 'page6_feedback-and-discount.html')
+
+
 def admin_dashboard(request):
     """管理後台頁面"""
     return render(request, 'admin_dashboard.html')
 
 
-# 添加檢查用戶認證狀態的API
+# =============================================================================
+# 認證與權限相關 API
+# =============================================================================
+
 @api_view(['GET'])
 def check_auth(request):
-    """
-    檢查用戶是否已登入
-    
-    返回:
-    - is_authenticated: 布爾值，表示用戶是否已登入
-    - username: 如果已登入，返回用戶名
-    """
+    """檢查用戶是否已登入"""
     data = {
         'is_authenticated': request.user.is_authenticated,
     }
@@ -159,25 +149,14 @@ def check_auth(request):
 
 @csrf_exempt
 def save_cart(request):
-    """
-    儲存購物車內容至 session
-    
-    POST 請求參數:
-    - items: 購物車項目列表
-    """
+    """儲存購物車內容至 session"""
     if request.method == 'POST':
         data = json.loads(request.body)
         request.session['cart_items'] = data['items']
-        return JsonResponse({'message': 'Cart saved successfully!'})
-
+        return JsonResponse({'message': '購物車已儲存成功！'})
 
 def get_cart(request):
-    """
-    從 session 獲取購物車內容
-    
-    返回:
-    - items: 購物車項目列表
-    """
+    """從 session 獲取購物車內容"""
     cart_items = request.session.get('cart_items', [])
     return JsonResponse({'items': cart_items})
 
@@ -188,6 +167,7 @@ def get_cart(request):
 
 @csrf_exempt
 def submit_order(request):
+    """提交訂單"""
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
@@ -196,7 +176,7 @@ def submit_order(request):
             coupon_code = data.get('coupon_code', None)
             user = request.user if request.user.is_authenticated else None
 
-            # 验证折扣券
+            # 驗證折價券
             discount = 0
             coupon = None
             if coupon_code and user:
@@ -210,29 +190,28 @@ def submit_order(request):
                     discount = int(coupon.coupon_type)
                 except Coupon.DoesNotExist:
                     return JsonResponse(
-                        {'success': False, 'error': '无效的折扣券'},
+                        {'success': False, 'error': '無效的折價券'},
                         status=400
                     )
 
-            # 创建订单（强制关联用户，即使为None）
-            order = Order.objects.create(
-                user=user,  # 明确传递用户（可能是None）
-                order_type=order_type,
-                total_price=0  # 初始值
-            )
-
-            # 计算总价
+            # 先計算總價
             total_price = sum(
                 MenuItem.objects.get(id=item['id']).price * item['count']
                 for item in items
             )
 
-            # 应用折扣
+            # 應用折扣
             final_price = max(0, total_price - discount)
-            order.total_price = final_price
-            order.save()
 
-            # 创建订单项
+            # 創建訂單（使用已計算好的 final_price）
+            order = Order.objects.create(
+                user=user,
+                order_type=order_type,
+                total_price=final_price,
+                coupon=coupon  # 確保這行存在
+            )
+
+            # 創建訂單項目
             for item in items:
                 menu_item = MenuItem.objects.get(id=item['id'])
                 OrderItem.objects.create(
@@ -242,12 +221,12 @@ def submit_order(request):
                     price=menu_item.price * item['count']
                 )
 
-            # 标记折扣券为已使用
+            # 標記折價券為已使用
             if coupon:
                 coupon.is_used = True
                 coupon.save()
 
-            # 清空购物车
+            # 清空購物車
             request.session.pop('cart_items', None)
 
             return JsonResponse({
@@ -258,13 +237,13 @@ def submit_order(request):
             })
 
         except Exception as e:
-            logger.error(f"订单提交失败: {str(e)}", exc_info=True)
+            logger.error(f"訂單提交失敗: {str(e)}", exc_info=True)
             return JsonResponse(
                 {'success': False, 'error': str(e)},
                 status=400
             )
     return JsonResponse(
-        {'error': '仅支持POST请求'},
+        {'error': '僅支援POST請求'},
         status=405
     )
 
@@ -272,13 +251,8 @@ def submit_order(request):
 @csrf_exempt
 @api_view(['GET'])
 def get_orders(request):
-    """
-    獲取所有訂單列表
-    
-    返回:
-    - 訂單列表，包含訂單詳情和項目
-    """
-    orders = Order.objects.all().order_by('-created_at')  # 按創建時間倒序排列
+    """獲取所有訂單列表"""
+    orders = Order.objects.all().order_by('-created_at')
     data = [
         {
             'order_id': str(order.order_id),
@@ -304,15 +278,7 @@ def get_orders(request):
 
 @api_view(['GET', 'DELETE'])
 def get_order_detail(request, order_id):
-    """
-    獲取或刪除單個訂單詳情
-    
-    GET 返回:
-    - 單個訂單的詳細信息
-    
-    DELETE 返回:
-    - 操作成功或失敗的消息
-    """
+    """獲取或刪除單個訂單詳情"""
     order = get_object_or_404(Order, order_id=order_id)
 
     if request.method == 'GET':
@@ -323,6 +289,8 @@ def get_order_detail(request, order_id):
             'total_price': order.total_price,
             'created_at': order.created_at,
             'status': order.status,
+            'coupon_type': getattr(getattr(order, 'coupon', None), 'coupon_type', None),  # 安全取得折價券資訊
+            'coupon_code': getattr(getattr(order, 'coupon', None), 'code', None),
             'items': [
                 {
                     'name': item.menu_item.name,
@@ -341,149 +309,14 @@ def get_order_detail(request, order_id):
 
 @api_view(['POST'])
 def update_order_status(request, order_id):
-    """
-    更新訂單狀態
-    
-    POST 請求參數:
-    - status: 新的訂單狀態 ('已送單', '製作中', '完成')
-    
-    返回:
-    - 操作成功或失敗的消息
-    """
+    """更新訂單狀態"""
     order = get_object_or_404(Order, order_id=order_id)
-    status = request.data.get('status')
-    if status in ['已送單', '製作中', '完成']:
-        order.status = status
+    status_value = request.data.get('status')
+    if status_value in ['已送單', '製作中', '完成']:
+        order.status = status_value
         order.save()
         return Response({'success': True, 'message': '訂單狀態已更新'})
     return Response({'success': False, 'message': '無效的狀態值'}, status=400)
-
-
-# =============================================================================
-# 菜單項目相關 API
-# =============================================================================
-
-@csrf_exempt
-@api_view(['POST'])
-def add_menu_item(request):
-    """
-    新增菜單項目
-    
-    POST 請求參數:
-    - category: 分類
-    - name: 名稱
-    - price: 價格
-    
-    返回:
-    - success: 成功或失敗
-    - item_id: 新項目的 ID
-    """
-    data = request.data
-    category = data.get('category')
-    name = data.get('name')
-    price = data.get('price')
-
-    if not category or not name or not price:
-        return Response({'success': False, 'message': '缺少必要參數'}, status=400)
-
-    menu_item = MenuItem.objects.create(
-        category=category,
-        name=name,
-        price=price
-    )
-    return Response({'success': True, 'message': '商品已新增', 'item_id': menu_item.id})
-
-
-@api_view(['POST'])
-def update_menu_item_status(request, item_id):
-    """
-    更新菜單項目狀態（例如標記為售完）
-    
-    POST 請求參數:
-    - sold_out: 是否售完 (布爾值)
-    
-    返回:
-    - 操作成功或失敗的消息
-    """
-    menu_item = get_object_or_404(MenuItem, id=item_id)
-    sold_out = request.data.get('sold_out', False)
-    menu_item.sold_out = sold_out
-    menu_item.save()
-    return Response({'success': True, 'message': '商品狀態已更新'})
-
-
-class MenuItemListAPIView(generics.ListCreateAPIView):
-    """
-    菜單項目列表 API
-    
-    GET:
-    獲取所有菜單項目
-    
-    POST:
-    新增菜單項目
-    """
-    queryset = MenuItem.objects.all().order_by('id')  # 按 ID 排序
-    serializer_class = MenuItemSerializer
-
-    def perform_create(self, serializer):
-        serializer.save()
-
-
-class MenuItemDetailAPIView(generics.RetrieveDestroyAPIView):
-    """
-    菜單項目詳情 API
-    
-    GET:
-    獲取單個菜單項目詳情
-    
-    DELETE:
-    刪除菜單項目，並重新排列 ID
-    """
-    queryset = MenuItem.objects.all()
-    serializer_class = MenuItemSerializer
-    lookup_field = 'id'
-
-    def destroy(self, request, *args, **kwargs):
-        """
-        刪除菜單項目並重新排列 ID，保持 ID 連續性
-        
-        處理步驟:
-        1. 刪除與該商品關聯的訂單項目
-        2. 刪除商品本身
-        3. 更新關聯表中的外鍵引用
-        4. 重新排列後續商品的 ID
-        """
-        with transaction.atomic():
-            # 獲取要刪除的實例
-            instance = self.get_object()
-            deleted_id = instance.id
-
-            # 找出所有關聯的訂單項
-            related_order_items = OrderItem.objects.filter(menu_item_id=deleted_id)
-
-            # 處理關聯的訂單項
-            if related_order_items.exists():
-                related_order_items.delete()
-
-            # 刪除商品
-            self.perform_destroy(instance)
-
-            # 獲取所有大於被刪除 ID 的商品
-            items_to_update = MenuItem.objects.filter(id__gt=deleted_id).order_by('id')
-
-            # 更新關聯表中的外鍵引用
-            for item in items_to_update:
-                OrderItem.objects.filter(menu_item_id=item.id).update(menu_item_id=item.id - 1)
-
-            # 重新排列 ID
-            for item in items_to_update:
-                with connection.cursor() as cursor:
-                    cursor.execute(
-                        "UPDATE Website_menuitem SET id = %s WHERE id = %s",
-                        [item.id - 1, item.id]
-                    )
-
-        return Response({'success': True, 'message': '商品已刪除，ID 已重新排列'})
 
 
 @api_view(['DELETE'])
@@ -518,20 +351,105 @@ def delete_completed_orders(request):
                         status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+# =============================================================================
+# 菜單項目相關 API
+# =============================================================================
+
+@csrf_exempt
+@api_view(['POST'])
+def add_menu_item(request):
+    """新增菜單項目"""
+    data = request.data
+    category = data.get('category')
+    name = data.get('name')
+    price = data.get('price')
+
+    if not category or not name or not price:
+        return Response({'success': False, 'message': '缺少必要參數'}, status=400)
+
+    menu_item = MenuItem.objects.create(
+        category=category,
+        name=name,
+        price=price
+    )
+    return Response({'success': True, 'message': '商品已新增', 'item_id': menu_item.id})
+
+
+@api_view(['POST'])
+def update_menu_item_status(request, item_id):
+    """更新菜單項目狀態（例如標記為售完）"""
+    menu_item = get_object_or_404(MenuItem, id=item_id)
+    sold_out = request.data.get('sold_out', False)
+    menu_item.sold_out = sold_out
+    menu_item.save()
+    return Response({'success': True, 'message': '商品狀態已更新'})
+
+
+class MenuItemListAPIView(generics.ListCreateAPIView):
+    """菜單項目列表 API"""
+    queryset = MenuItem.objects.all().order_by('id')
+    serializer_class = MenuItemSerializer
+
+    def perform_create(self, serializer):
+        serializer.save()
+
+
+class MenuItemDetailAPIView(generics.RetrieveDestroyAPIView):
+    """菜單項目詳情 API"""
+    queryset = MenuItem.objects.all()
+    serializer_class = MenuItemSerializer
+    lookup_field = 'id'
+
+    def destroy(self, request, *args, **kwargs):
+        """刪除菜單項目並重新排列 ID，保持 ID 連續性"""
+        with transaction.atomic():
+            instance = self.get_object()
+            deleted_id = instance.id
+
+            # 刪除關聯的訂單項目
+            related_order_items = OrderItem.objects.filter(menu_item_id=deleted_id)
+            if related_order_items.exists():
+                related_order_items.delete()
+
+            # 刪除商品
+            self.perform_destroy(instance)
+
+            # 取得所有大於被刪除 ID 的商品
+            items_to_update = MenuItem.objects.filter(id__gt=deleted_id).order_by('id')
+
+            # 更新關聯表中的外鍵引用
+            for item in items_to_update:
+                OrderItem.objects.filter(menu_item_id=item.id).update(menu_item_id=item.id - 1)
+
+            # 重新排列 ID
+            for item in items_to_update:
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        "UPDATE Website_menuitem SET id = %s WHERE id = %s",
+                        [item.id - 1, item.id]
+                    )
+
+        return Response({'success': True, 'message': '商品已刪除，ID 已重新排列'})
+
+
+# =============================================================================
+# 管理後台相關視圖
+# =============================================================================
+
 def is_superuser(user):
     """檢查是否為超級用戶"""
     return user.is_superuser
 
 
-# 登入頁面（無需裝飾器，允許公開訪問）
 def admin_dashboard_login(request):
+    """管理後台登入頁面（允許公開訪問）"""
     if request.user.is_authenticated and request.user.is_superuser:
         return redirect('admin_dashboard')
     return render(request, 'admin_dashboard_login.html')
 
 
-# 登入驗證
 def admin_dashboard_auth(request):
+    """管理後台登入驗證"""
     if request.method == 'POST':
         username = request.POST.get('username')
         password = request.POST.get('password')
@@ -547,14 +465,17 @@ def admin_dashboard_auth(request):
     return redirect('admin_dashboard_login')
 
 
-# 主控台頁面（受保護）
 @login_required(login_url='/admin_dashboard/login/')
 @user_passes_test(is_superuser)
 def admin_dashboard(request):
+    """管理後台主控台頁面（需超級用戶）"""
     return render(request, 'admin_dashboard.html')
 
 
-# 新增在 views.py
+# =============================================================================
+# 評價與折價券相關 API
+# =============================================================================
+
 @api_view(['POST'])
 def submit_feedback(request):
     """提交評價並進行抽獎"""
@@ -563,6 +484,7 @@ def submit_feedback(request):
 
     order_id = request.data.get('order_id')
     rating = request.data.get('rating')
+    discount = request.data.get('discount', 0)  # 接收前端傳來的折價券金額
 
     try:
         order = Order.objects.get(order_id=order_id, status='完成')
@@ -578,27 +500,25 @@ def submit_feedback(request):
             rating=rating
         )
 
-        # 抽獎邏輯
-        import random
-        lottery = random.choices(
-            ['0', '10', '20', '30', '100'],
-            weights=[40, 30, 20, 9, 1],
-            k=1
-        )[0]
-
-        # 產生折價券
-        coupon = Coupon.objects.create(
-            user=request.user,
-            coupon_type=lottery,
-            code=f"COUPON-{uuid.uuid4().hex[:8].upper()}",
-            valid_until=timezone.now() + timezone.timedelta(days=30)
-        )
-
-        return Response({
-            'success': True,
-            'coupon': CouponSerializer(coupon).data,
-            'discount': int(lottery)
-        })
+        # 如果不是銘謝惠顧才產生折價券
+        if discount > 0:
+            coupon = Coupon.objects.create(
+                user=request.user,
+                coupon_type=str(discount),
+                code=f"COUPON-{uuid.uuid4().hex[:8].upper()}",
+                valid_until=timezone.now() + timezone.timedelta(days=30)
+            )
+            return Response({
+                'success': True,
+                'coupon': CouponSerializer(coupon).data,
+                'discount': discount
+            })
+        else:
+            # 銘謝惠顧不產生折價券
+            return Response({
+                'success': True,
+                'discount': 0
+            })
 
     except Order.DoesNotExist:
         return Response({'error': '訂單不存在或尚未完成'}, status=404)
@@ -623,11 +543,6 @@ def get_menu_ratings(request):
     """獲取餐點平均評分"""
     from django.db.models import Avg
     ratings = MenuItem.objects.annotate(
-        avg_rating=Avg('order__feedback__rating')
+        avg_rating=Avg('orderitem__order__feedback__rating')
     ).values('id', 'name', 'avg_rating')
     return Response(ratings)
-
-
-def page6_feedback(request):
-    """反馈与优惠页面"""
-    return render(request, 'page6_feedback-and-discount.html')

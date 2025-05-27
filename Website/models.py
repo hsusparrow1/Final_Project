@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.db.models import Avg
 import uuid  # 用來產生隨機不重複的訂單編號
 
 
@@ -42,7 +43,7 @@ class Order(models.Model):
         ('製作中', '製作中'),
         ('完成', '完成'),
     ]
-
+    
     order_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)  # 隨機訂單編號
     sequence_number = models.PositiveIntegerField(default=0, editable=False)  # 流水號
     order_type = models.CharField(max_length=5, choices=ORDER_TYPE_CHOICES)  # 內用/外帶
@@ -50,6 +51,7 @@ class Order(models.Model):
     total_price = models.DecimalField(max_digits=8, decimal_places=2, default=0.00)  # 訂單總價
     created_at = models.DateTimeField(auto_now_add=True)  # 建立時間（下單時間）
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='已送單')  # 訂單狀態
+    coupon = models.ForeignKey('Coupon', null=True, blank=True, on_delete=models.SET_NULL)
 
     user = models.ForeignKey(
         User,

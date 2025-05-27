@@ -146,6 +146,8 @@
             const response = await axios.get(`/api/orders/${orderId}/`);
             const order = response.data;
 
+            console.log(order); // 檢查 order.coupon_type 是否真的有值
+
             updateProgressBar(order.status);
 
             document.getElementById('order-info').innerHTML = `
@@ -159,9 +161,8 @@
                     </p>
                     <p><span class="text-gray-400">訂單類型：</span>${order.order_type}</p>
                     <p><span class="text-gray-400">建立時間：</span>${new Date(order.created_at).toLocaleString()}</p>
-                    <p><span class="text-gray-400">總金額：</span>$${order.total_price}</p>
                 </div>
-
+                
                 <h3 class="text-lg font-bold mt-6 mb-3">訂單內容</h3>
                 <ul class="space-y-2">
                     ${order.items.map(item => `
@@ -171,9 +172,24 @@
                         </li>
                     `).join('')}
                 </ul>
-                <div class="border-t border-gray-700 mt-4 pt-4 flex justify-between font-bold">
-                    <span>總計</span>
-                    <span>$${order.total_price}</span>
+                
+                <div class="border-t border-gray-700 mt-4 pt-4 space-y-2">
+                    <div class="flex justify-between">
+                        <span>小計</span>
+                        <span>$${order.items.reduce((sum, item) => sum + parseFloat(item.price), 0).toFixed(2)}</span>
+                    </div>
+                    ${
+                        order.coupon_type && order.coupon_type !== '0'
+                            ? `<div class="flex justify-between text-green-400">
+                                <span>使用折價券（${order.coupon_code || '折價券'}）</span>
+                                <span>-$${order.coupon_type}</span>
+                               </div>`
+                            : ''
+                    }
+                    <div class="border-t border-gray-600 pt-2 flex justify-between font-bold text-lg">
+                        <span>總計</span>
+                        <span>$${order.total_price}</span>
+                    </div>
                 </div>
             `;
 

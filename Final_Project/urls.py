@@ -42,6 +42,12 @@ urlpatterns = [
     path('api/orders/<uuid:order_id>/status/', update_order_status, name='update_order_status'),  # 更新訂單狀態
     path('api/orders/<uuid:order_id>/delete/', views.delete_order, name='delete_order'),
     path('api/orders/completed/delete/', views.delete_completed_orders, name='delete_completed_orders'),
+    
+    # 評價與折價券相關 API
+    path('api/submit-feedback/', views.submit_feedback, name='submit_feedback'),  # 重要：確保這行存在
+    path('api/get-coupons/', views.get_user_coupons, name='get_user_coupons'),
+    path('api/menu-ratings/', views.get_menu_ratings, name='get_menu_ratings'),
+    
     # 管理後台登入路由（公開訪問）
     path('admin_dashboard/login/', admin_dashboard_login, name='admin_dashboard_login'),
     path('admin_dashboard/auth/', admin_dashboard_auth, name='admin_dashboard_auth'),

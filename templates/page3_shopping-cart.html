@@ -8,23 +8,28 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
         @media (max-width: 640px) {
+            /* 調整分類按鈕 */
             .category-btn {
                 padding: 0.5rem 1rem !important;
                 font-size: 0.9rem !important;
             }
 
+            /* 調整商品卡片 */
             .product-card {
                 padding: 1rem !important;
             }
 
+            /* 調整商品名稱字體 */
             .product-name {
                 font-size: 1.1rem !important;
             }
 
+            /* 調整價格字體 */
             .product-price {
                 font-size: 1.2rem !important;
             }
 
+            /* 調整底部結帳欄 */
             .checkout-bar {
                 padding: 1rem !important;
             }
@@ -63,7 +68,11 @@
                         : [...acc, serverItem];
                 }, JSON.parse(sessionStorage.getItem('cartItems')) || []);
 
-                const validCart = mergedCart.filter(item => item.count > 0).sort((a, b) => a.id - b.id);
+                // 過濾有效項目並按價格排序 (從高到低)
+                const validCart = mergedCart
+                    .filter(item => item.count > 0)
+                    .sort((a, b) => a.price - b.price);  // 修改這裡，改為按價格排序
+
                 setCartItems(validCart);
                 sessionStorage.setItem('cartItems', JSON.stringify(validCart));
                 await axios.post('/api/save-cart/', {items: validCart});
@@ -223,7 +232,7 @@
                                         <option value="">不使用</option>
                                         {coupons.map(coupon => (
                                             <option key={coupon.code} value={coupon.code}>
-                                                {coupon.get_coupon_type_display}
+                                                折{coupon.coupon_type}元
                                             </option>
                                         ))}
                                     </select>
