@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <title>評價與抽獎</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <meta name="csrf-token" content="{{ csrf_token }}">
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <style>
         .wheel-container {
@@ -14,12 +15,13 @@
         }
 
         .wheel {
-            width: 100%;
-            height: 100%;
+            width: 300px;
+            height: 300px;
             border-radius: 50%;
-            position: relative;
-            overflow: hidden;
-            transition: transform 5s cubic-bezier(0.17, 0.67, 0.12, 0.99);
+            display: block;
+            margin: 0 auto;
+            background: #fff;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
         }
 
         .wheel-section {
@@ -28,22 +30,34 @@
             height: 50%;
             transform-origin: bottom right;
             display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
+            align-items: flex-start;
+            justify-content: flex-start;
+            border: 1px solid rgba(255,255,255,0.3);
         }
 
         .wheel-pointer {
             position: absolute;
-            top: -20px;
+            top: -15px;
             left: 50%;
             transform: translateX(-50%);
             width: 0;
             height: 0;
-            border-left: 20px solid transparent;
-            border-right: 20px solid transparent;
-            border-top: 40px solid red;
+            border-left: 15px solid transparent;
+            border-right: 15px solid transparent;
+            border-top: 30px solid #DC2626;
             z-index: 10;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+        }
+
+        .wheel-section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            clip-path: polygon(0 0, 100% 0, 0 100%);
+            background: inherit;
         }
     </style>
 </head>
@@ -78,7 +92,7 @@
         <h2 class="text-2xl font-bold mb-4 text-center">折價券抽獎</h2>
         <div class="wheel-container">
             <div class="wheel-pointer"></div>
-            <div id="wheel" class="wheel"></div>
+            <svg id="wheel" class="wheel" width="300" height="300" viewBox="0 0 300 300"></svg>
         </div>
         <div id="result" class="mt-4 text-center text-xl font-bold"></div>
     </div>
@@ -93,6 +107,9 @@
 </div>
 
 <script>
+    // 設定 axios 預設 CSRF Token header
+    axios.defaults.headers.common['X-CSRFToken'] = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
     // 初始化變數
     let rating = 0;
     let orderId = new URLSearchParams(window.location.search).get('order_id');
@@ -132,9 +149,18 @@
         }
 
         try {
+            // 隱藏評價區，顯示抽獎區
+            document.getElementById('feedback-section').classList.add('hidden');
+            document.getElementById('lottery-section').classList.remove('hidden');
+
+            // 立即開始轉盤動畫
+            const discount = spinWheelRandomly();
+
+            // 提交評價到後端（帶上前端決定的折價券金額）
             const response = await axios.post('/api/submit-feedback/', {
                 order_id: orderId,
-                rating: rating
+                rating: rating,
+                discount: discount  // 將前端決定的折價券金額傳給後端
             });
 
             if (response.data.error) {
@@ -146,54 +172,99 @@
                 return;
             }
 
-            document.getElementById('feedback-section').classList.add('hidden');
-            document.getElementById('lottery-section').classList.remove('hidden');
-
-            // 確保 response.data.discount 是數字
-            const discount = parseInt(response.data.discount) || 0;
-            spinWheel(discount);
-
             // 重新載入折價券列表
-            loadCoupons();
+            setTimeout(() => {
+                loadCoupons();
+            }, 5500); // 等轉盤動畫完成後再載入
+
         } catch (error) {
             console.error('提交評價失敗:', error);
             alert('提交評價失敗，請稍後再試');
         }
     }
 
-    // 旋轉輪盤
-    function spinWheel(discount) {
-        const wheel = document.getElementById('wheel');
-        const resultDiv = document.getElementById('result');
+    // 畫圓餅圖
+    function drawWheel() {
+        const svg = document.getElementById('wheel');
+        svg.innerHTML = '';
+        const cx = 150, cy = 150, r = 140;
+        const sectionAngle = 360 / prizes.length;
 
-        // 找到對應的獎項
-        const targetPrize = prizes.find(p => p.discount === discount) || prizes[0];
-        const prizeIndex = prizes.findIndex(p => p.discount === discount);
+        for (let i = 0; i < prizes.length; i++) {
+            const startAngle = i * sectionAngle - 90;
+            const endAngle = (i + 1) * sectionAngle - 90;
+            const x1 = cx + r * Math.cos(startAngle * Math.PI / 180);
+            const y1 = cy + r * Math.sin(startAngle * Math.PI / 180);
+            const x2 = cx + r * Math.cos(endAngle * Math.PI / 180);
+            const y2 = cy + r * Math.sin(endAngle * Math.PI / 180);
+            const largeArc = sectionAngle > 180 ? 1 : 0;
 
-        // 計算旋轉角度 (5圈 + 獎品位置)
-        const angle = 1800 + (prizeIndex * 72); // 每獎品72度
+            const pathData = [
+                `M ${cx} ${cy}`,
+                `L ${x1} ${y1}`,
+                `A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2}`,
+                'Z'
+            ].join(' ');
 
-        wheel.style.transform = `rotate(${-angle}deg)`;
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            path.setAttribute('d', pathData);
+            path.setAttribute('fill', prizes[i].color);
+            svg.appendChild(path);
 
-        setTimeout(() => {
-            resultDiv.innerHTML = `恭喜獲得: ${targetPrize.text}`;
-        }, 5000);
+            // 文字
+            const textAngle = (startAngle + endAngle) / 2;
+            const tx = cx + (r - 50) * Math.cos(textAngle * Math.PI / 180);
+            const ty = cy + (r - 50) * Math.sin(textAngle * Math.PI / 180) + 8;
+            const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            text.setAttribute('x', tx);
+            text.setAttribute('y', ty);
+            text.setAttribute('text-anchor', 'middle');
+            text.setAttribute('font-size', '18');
+            text.setAttribute('fill', '#222');
+            text.textContent = prizes[i].text;
+            svg.appendChild(text);
+        }
+        svg.style.transition = 'transform 5s cubic-bezier(0.17, 0.67, 0.12, 0.99)';
+        svg.style.transform = 'rotate(0deg)';
     }
 
-    // 初始化輪盤
-    function initWheel() {
-        const wheel = document.getElementById('wheel');
-        let cumulativeAngle = 0;
+    // 轉盤動畫與抽獎
+    function spinWheelRandomly() {
+        const svg = document.getElementById('wheel');
+        const resultDiv = document.getElementById('result');
 
-        prizes.forEach(prize => {
-            const section = document.createElement('div');
-            section.className = 'wheel-section';
-            section.style.backgroundColor = prize.color;
-            section.style.transform = `rotate(${cumulativeAngle}deg)`;
-            section.innerHTML = `<span style="transform: rotate(36deg);">${prize.text}</span>`;
-            wheel.appendChild(section);
-            cumulativeAngle += 72; // 360/5=72
-        });
+        // 隨機選獎
+        const random = Math.random() * 100;
+        let cumulativeChance = 0;
+        let selectedIndex = 0;
+        let selectedPrize = prizes[0];
+        for (let i = 0; i < prizes.length; i++) {
+            cumulativeChance += prizes[i].chance;
+            if (random <= cumulativeChance) {
+                selectedPrize = prizes[i];
+                selectedIndex = i;
+                break;
+            }
+        }
+
+        // 算旋轉角度
+        const sectionAngle = 360 / prizes.length;
+        const stopAngle = selectedIndex * sectionAngle + sectionAngle / 2;
+        const rotations = 5 + Math.random() * 3;
+        const totalRotation = rotations * 360 - stopAngle;
+
+        svg.style.transition = 'transform 5s cubic-bezier(0.17, 0.67, 0.12, 0.99)';
+        svg.style.transform = `rotate(${totalRotation}deg)`;
+
+        setTimeout(() => {
+            resultDiv.innerHTML = `
+                <div class="p-4 rounded-lg ${selectedPrize.discount > 0 ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}">
+                    🎉 恭喜獲得: <strong>${selectedPrize.text}</strong> 🎉
+                </div>
+            `;
+        }, 5000);
+
+        return selectedPrize.discount;
     }
 
     // 載入訂單項目
@@ -264,7 +335,7 @@
 
     // 頁面載入時初始化
     document.addEventListener('DOMContentLoaded', () => {
-        initWheel();
+        drawWheel();
         loadOrderItems();
         loadCoupons();
         renderStars();

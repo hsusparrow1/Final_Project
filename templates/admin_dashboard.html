@@ -334,8 +334,12 @@
         }
     }
 
+    // 頁面載入時先抓一次
     fetchOrders();
     fetchMenuItems();
+
+    // 每10秒自動刷新訂單
+    setInterval(fetchOrders, 10000);
 </script>
 <div class="fixed bottom-4 right-4">
     <a href="{% url 'logout' %}?next=/admin_dashboard_login/"
