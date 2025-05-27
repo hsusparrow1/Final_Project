@@ -2,6 +2,7 @@ from django.db import models
 from django.contrib.auth.models import User
 import uuid  # 用來產生隨機不重複的訂單編號
 
+
 #  菜單分類（餐點資料）
 class MenuItem(models.Model):
     CATEGORY_CHOICES = [
@@ -28,6 +29,7 @@ class MenuItem(models.Model):
     def __str__(self):
         return self.name
 
+
 #  訂單（Order）
 class Order(models.Model):
     ORDER_TYPE_CHOICES = [
@@ -49,6 +51,14 @@ class Order(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)  # 建立時間（下單時間）
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='已送單')  # 訂單狀態
 
+    user = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='orders'
+    )
+
     class Meta:
         ordering = ['created_at']  # 按照下單時間「舊到新」排列
 
@@ -66,6 +76,7 @@ class Order(models.Model):
         self.total_price = sum(item.price for item in self.items.all())
         self.save()
 
+
 #  訂單細項（每筆餐點）
 class OrderItem(models.Model):
     id = models.AutoField(primary_key=True)  # 自動流水號
@@ -80,11 +91,42 @@ class OrderItem(models.Model):
     def save(self, *args, **kwargs):
         self.price = self.menu_item.price * self.quantity
         super().save(*args, **kwargs)
-        
+
+
 class UserProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
     phone = models.CharField(max_length=20, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    
+
     def __str__(self):
         return f"{self.user.username}'s profile"
+
+
+class Feedback(models.Model):
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    order = models.ForeignKey(Order, on_delete=models.CASCADE)
+    rating = models.PositiveSmallIntegerField(choices=[(i, str(i)) for i in range(1, 6)])  # 1-5星
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user', 'order')  # 防止重複評價
+
+
+class Coupon(models.Model):
+    COUPON_TYPES = [
+        ('10', '折10元'),
+        ('20', '折20元'),
+        ('30', '折30元'),
+        ('100', '免單'),
+        ('0', '銘謝惠顧')
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    coupon_type = models.CharField(max_length=3, choices=COUPON_TYPES)
+    code = models.CharField(max_length=20, unique=True)
+    is_used = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    valid_until = models.DateTimeField()
+
+    def __str__(self):
+        return f"{self.get_coupon_type_display()} (到期: {self.valid_until.strftime('%Y-%m-%d')})"

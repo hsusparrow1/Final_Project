@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>評價與抽獎</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        .wheel-container {
+            position: relative;
+            width: 300px;
+            height: 300px;
+            margin: 0 auto;
+        }
+
+        .wheel {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            position: relative;
+            overflow: hidden;
+            transition: transform 5s cubic-bezier(0.17, 0.67, 0.12, 0.99);
+        }
+
+        .wheel-section {
+            position: absolute;
+            width: 50%;
+            height: 50%;
+            transform-origin: bottom right;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+
+        .wheel-pointer {
+            position: absolute;
+            top: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 20px solid transparent;
+            border-right: 20px solid transparent;
+            border-top: 40px solid red;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+<div class="container mx-auto px-4 py-8 max-w-md">
+    <!-- 訂單項目顯示區 -->
+    <div id="order-items-section" class="bg-white rounded-lg shadow-md p-6 mb-6">
+        <h2 class="text-xl font-bold mb-4">您的訂單內容</h2>
+        <div id="order-items-list" class="space-y-2">
+            <!-- 訂單項目將由JS動態載入 -->
+        </div>
+    </div>
+
+    <!-- 評價區 -->
+    <div id="feedback-section" class="bg-white rounded-lg shadow-md p-6 mb-6">
+        <h1 class="text-2xl font-bold mb-4 text-center">餐點評價</h1>
+        <div class="flex justify-center mb-4">
+            <button onclick="setRating(1)" class="text-4xl mx-1 focus:outline-none" id="star1">★</button>
+            <button onclick="setRating(2)" class="text-4xl mx-1 focus:outline-none" id="star2">★</button>
+            <button onclick="setRating(3)" class="text-4xl mx-1 focus:outline-none" id="star3">★</button>
+            <button onclick="setRating(4)" class="text-4xl mx-1 focus:outline-none" id="star4">★</button>
+            <button onclick="setRating(5)" class="text-4xl mx-1 focus:outline-none" id="star5">★</button>
+        </div>
+        <button onclick="submitFeedback()"
+                class="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg font-bold">
+            提交評價並抽獎
+        </button>
+    </div>
+
+    <!-- 抽獎區 (初始隱藏) -->
+    <div id="lottery-section" class="hidden bg-white rounded-lg shadow-md p-6 mb-6">
+        <h2 class="text-2xl font-bold mb-4 text-center">折價券抽獎</h2>
+        <div class="wheel-container">
+            <div class="wheel-pointer"></div>
+            <div id="wheel" class="wheel"></div>
+        </div>
+        <div id="result" class="mt-4 text-center text-xl font-bold"></div>
+    </div>
+
+    <!-- 折價券顯示區 -->
+    <div id="coupon-section" class="bg-white rounded-lg shadow-md p-6">
+        <h2 class="text-2xl font-bold mb-4">我的折價券</h2>
+        <div id="coupons-list" class="space-y-3">
+            <!-- 折價券將由JS動態載入 -->
+        </div>
+    </div>
+</div>
+
+<script>
+    // 初始化變數
+    let rating = 0;
+    let orderId = new URLSearchParams(window.location.search).get('order_id');
+    const prizes = [
+        {text: '銘謝惠顧', color: '#F3F4F6', discount: 0, chance: 40},
+        {text: '折10元', color: '#A7F3D0', discount: 10, chance: 30},
+        {text: '折20元', color: '#6EE7B7', discount: 20, chance: 20},
+        {text: '折30元', color: '#34D399', discount: 30, chance: 9},
+        {text: '免單', color: '#10B981', discount: 100, chance: 1}
+    ];
+
+    // 渲染星星評分
+    function renderStars() {
+        for (let i = 1; i <= 5; i++) {
+            const star = document.getElementById(`star${i}`);
+            if (i <= rating) {
+                star.classList.add('text-yellow-400');
+                star.classList.remove('text-gray-300');
+            } else {
+                star.classList.add('text-gray-300');
+                star.classList.remove('text-yellow-400');
+            }
+        }
+    }
+
+    // 設定評分
+    function setRating(value) {
+        rating = value;
+        renderStars();
+    }
+
+    // 提交評價
+    async function submitFeedback() {
+        if (!rating) {
+            alert('請選擇評分');
+            return;
+        }
+
+        try {
+            const response = await axios.post('/api/submit-feedback/', {
+                order_id: orderId,
+                rating: rating
+            });
+
+            if (response.data.error) {
+                if (response.data.error === '請先登入') {
+                    window.location.href = `/page0_login/?next=/page6_feedback/?order_id=${orderId}`;
+                } else {
+                    alert(response.data.error);
+                }
+                return;
+            }
+
+            document.getElementById('feedback-section').classList.add('hidden');
+            document.getElementById('lottery-section').classList.remove('hidden');
+
+            // 確保 response.data.discount 是數字
+            const discount = parseInt(response.data.discount) || 0;
+            spinWheel(discount);
+
+            // 重新載入折價券列表
+            loadCoupons();
+        } catch (error) {
+            console.error('提交評價失敗:', error);
+            alert('提交評價失敗，請稍後再試');
+        }
+    }
+
+    // 旋轉輪盤
+    function spinWheel(discount) {
+        const wheel = document.getElementById('wheel');
+        const resultDiv = document.getElementById('result');
+
+        // 找到對應的獎項
+        const targetPrize = prizes.find(p => p.discount === discount) || prizes[0];
+        const prizeIndex = prizes.findIndex(p => p.discount === discount);
+
+        // 計算旋轉角度 (5圈 + 獎品位置)
+        const angle = 1800 + (prizeIndex * 72); // 每獎品72度
+
+        wheel.style.transform = `rotate(${-angle}deg)`;
+
+        setTimeout(() => {
+            resultDiv.innerHTML = `恭喜獲得: ${targetPrize.text}`;
+        }, 5000);
+    }
+
+    // 初始化輪盤
+    function initWheel() {
+        const wheel = document.getElementById('wheel');
+        let cumulativeAngle = 0;
+
+        prizes.forEach(prize => {
+            const section = document.createElement('div');
+            section.className = 'wheel-section';
+            section.style.backgroundColor = prize.color;
+            section.style.transform = `rotate(${cumulativeAngle}deg)`;
+            section.innerHTML = `<span style="transform: rotate(36deg);">${prize.text}</span>`;
+            wheel.appendChild(section);
+            cumulativeAngle += 72; // 360/5=72
+        });
+    }
+
+    // 載入訂單項目
+    function loadOrderItems() {
+        axios.get(`/api/orders/${orderId}/`)
+            .then(response => {
+                const order = response.data;
+                const container = document.getElementById('order-items-list');
+
+                container.innerHTML = order.items.map(item => `
+                    <div class="flex justify-between py-2 border-b border-gray-100">
+                        <span>${item.name} x ${item.quantity}</span>
+                        <span>$${item.price}</span>
+                    </div>
+                `).join('');
+            })
+            .catch(error => {
+                console.error('載入訂單項目失敗:', error);
+            });
+    }
+
+    // 載入折價券
+    function loadCoupons() {
+        axios.get('/api/get-coupons/')
+            .then(response => {
+                const container = document.getElementById('coupons-list');
+                if (response.data.length === 0) {
+                    container.innerHTML = '<p class="text-gray-500">您目前沒有可用的折價券</p>';
+                } else {
+                    container.innerHTML = response.data.map(coupon => `
+                        <div class="p-3 rounded-lg border ${getCouponColor(coupon.coupon_type)}">
+                            <div class="flex justify-between items-center">
+                                <span class="font-bold">${getCouponText(coupon.coupon_type)}</span>
+                                <span class="text-sm">到期: ${new Date(coupon.valid_until).toLocaleDateString()}</span>
+                            </div>
+                            <div class="mt-1 text-sm">代碼: ${coupon.code}</div>
+                        </div>
+                    `).join('');
+                }
+            })
+            .catch(error => {
+                console.error('載入折價券失敗:', error);
+            });
+    }
+
+    // 輔助函數
+    function getCouponColor(type) {
+        const colors = {
+            '10': 'bg-green-100 border-green-300',
+            '20': 'bg-green-200 border-green-400',
+            '30': 'bg-green-300 border-green-500',
+            '100': 'bg-yellow-100 border-yellow-300',
+            '0': 'bg-gray-100 border-gray-300'
+        };
+        return colors[type] || 'bg-gray-100';
+    }
+
+    function getCouponText(type) {
+        const texts = {
+            '10': '折10元券',
+            '20': '折20元券',
+            '30': '折30元券',
+            '100': '免單券',
+            '0': '銘謝惠顧'
+        };
+        return texts[type] || '折價券';
+    }
+
+    // 頁面載入時初始化
+    document.addEventListener('DOMContentLoaded', () => {
+        initWheel();
+        loadOrderItems();
+        loadCoupons();
+        renderStars();
+
+        // 檢查訂單是否已完成
+        axios.get(`/api/orders/${orderId}/`)
+            .then(response => {
+                if (response.data.status !== '完成') {
+                    alert('訂單尚未完成，無法評價');
+                    window.location.href = '/page5_order_status/?order_id=' + orderId;
+                }
+            })
+            .catch(error => {
+                console.error('檢查訂單狀態失敗:', error);
+            });
+    });
+</script>
+</body>
+</html>

@@ -2,6 +2,9 @@
 # 導入區域
 # =============================================================================
 # Django 相關導入
+import uuid
+from django.utils import timezone
+
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.shortcuts import render, get_object_or_404
 from django.http import JsonResponse
@@ -11,7 +14,7 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
 from django.shortcuts import redirect
 
-from .models import UserProfile
+from .models import UserProfile, Feedback, Coupon
 
 # REST Framework 相關導入
 from rest_framework import generics, status
@@ -20,7 +23,7 @@ from rest_framework.response import Response
 
 # 專案模型與序列化器導入
 from .models import MenuItem, Order, OrderItem
-from .serializers import MenuItemSerializer
+from .serializers import MenuItemSerializer, CouponSerializer
 
 # 其他標準庫導入
 import json
@@ -185,55 +188,85 @@ def get_cart(request):
 
 @csrf_exempt
 def submit_order(request):
-    """
-    提交訂單
-    
-    POST 請求參數:
-    - type: 訂單類型 (外帶或內用)
-    - items: 訂單項目列表，每個項目包含 id 和 count
-    
-    返回:
-    - success: 成功或失敗
-    - order_id: 新建訂單的 ID
-    """
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
             order_type = data.get('type')
             items = data.get('items', [])
+            coupon_code = data.get('coupon_code', None)
+            user = request.user if request.user.is_authenticated else None
 
-            # 創建新訂單
+            # 验证折扣券
+            discount = 0
+            coupon = None
+            if coupon_code and user:
+                try:
+                    coupon = Coupon.objects.get(
+                        code=coupon_code,
+                        user=user,
+                        is_used=False,
+                        valid_until__gte=timezone.now()
+                    )
+                    discount = int(coupon.coupon_type)
+                except Coupon.DoesNotExist:
+                    return JsonResponse(
+                        {'success': False, 'error': '无效的折扣券'},
+                        status=400
+                    )
+
+            # 创建订单（强制关联用户，即使为None）
             order = Order.objects.create(
+                user=user,  # 明确传递用户（可能是None）
                 order_type=order_type,
-                gmail='',  # 可以根據需要添加郵件收集功能
-                total_price=0  # 初始值，後面會計算
+                total_price=0  # 初始值
             )
 
-            # 建立訂單項目並計算總價
-            total_price = 0
-            for item_data in items:
-                menu_item = MenuItem.objects.get(id=item_data['id'])
-                order_item = OrderItem.objects.create(
-                    order=order,
-                    menu_item=menu_item,
-                    quantity=item_data['count'],
-                    price=menu_item.price * item_data['count']
-                )
-                total_price += order_item.price
+            # 计算总价
+            total_price = sum(
+                MenuItem.objects.get(id=item['id']).price * item['count']
+                for item in items
+            )
 
-            # 更新訂單總價
-            order.total_price = total_price
+            # 应用折扣
+            final_price = max(0, total_price - discount)
+            order.total_price = final_price
             order.save()
 
-            # 清空購物車
-            if 'cart_items' in request.session:
-                del request.session['cart_items']
+            # 创建订单项
+            for item in items:
+                menu_item = MenuItem.objects.get(id=item['id'])
+                OrderItem.objects.create(
+                    order=order,
+                    menu_item=menu_item,
+                    quantity=item['count'],
+                    price=menu_item.price * item['count']
+                )
 
-            return JsonResponse({'success': True, 'order_id': str(order.order_id)})
+            # 标记折扣券为已使用
+            if coupon:
+                coupon.is_used = True
+                coupon.save()
+
+            # 清空购物车
+            request.session.pop('cart_items', None)
+
+            return JsonResponse({
+                'success': True,
+                'order_id': str(order.order_id),
+                'discount_applied': discount,
+                'final_price': final_price
+            })
+
         except Exception as e:
-            logger.error(f"提交訂單時發生錯誤: {str(e)}")
-            return JsonResponse({'success': False, 'error': str(e)}, status=400)
-    return JsonResponse({'error': 'Invalid request method'}, status=405)
+            logger.error(f"订单提交失败: {str(e)}", exc_info=True)
+            return JsonResponse(
+                {'success': False, 'error': str(e)},
+                status=400
+            )
+    return JsonResponse(
+        {'error': '仅支持POST请求'},
+        status=405
+    )
 
 
 @csrf_exempt
@@ -519,3 +552,82 @@ def admin_dashboard_auth(request):
 @user_passes_test(is_superuser)
 def admin_dashboard(request):
     return render(request, 'admin_dashboard.html')
+
+
+# 新增在 views.py
+@api_view(['POST'])
+def submit_feedback(request):
+    """提交評價並進行抽獎"""
+    if not request.user.is_authenticated:
+        return Response({'error': '請先登入'}, status=401)
+
+    order_id = request.data.get('order_id')
+    rating = request.data.get('rating')
+
+    try:
+        order = Order.objects.get(order_id=order_id, status='完成')
+
+        # 檢查是否已評價過
+        if Feedback.objects.filter(order=order, user=request.user).exists():
+            return Response({'error': '您已評價過此訂單'}, status=400)
+
+        # 儲存評價
+        feedback = Feedback.objects.create(
+            user=request.user,
+            order=order,
+            rating=rating
+        )
+
+        # 抽獎邏輯
+        import random
+        lottery = random.choices(
+            ['0', '10', '20', '30', '100'],
+            weights=[40, 30, 20, 9, 1],
+            k=1
+        )[0]
+
+        # 產生折價券
+        coupon = Coupon.objects.create(
+            user=request.user,
+            coupon_type=lottery,
+            code=f"COUPON-{uuid.uuid4().hex[:8].upper()}",
+            valid_until=timezone.now() + timezone.timedelta(days=30)
+        )
+
+        return Response({
+            'success': True,
+            'coupon': CouponSerializer(coupon).data,
+            'discount': int(lottery)
+        })
+
+    except Order.DoesNotExist:
+        return Response({'error': '訂單不存在或尚未完成'}, status=404)
+
+
+@api_view(['GET'])
+def get_user_coupons(request):
+    """獲取用戶可用折價券"""
+    if not request.user.is_authenticated:
+        return Response({'error': '請先登入'}, status=401)
+
+    coupons = Coupon.objects.filter(
+        user=request.user,
+        is_used=False,
+        valid_until__gte=timezone.now()
+    )
+    return Response(CouponSerializer(coupons, many=True).data)
+
+
+@api_view(['GET'])
+def get_menu_ratings(request):
+    """獲取餐點平均評分"""
+    from django.db.models import Avg
+    ratings = MenuItem.objects.annotate(
+        avg_rating=Avg('order__feedback__rating')
+    ).values('id', 'name', 'avg_rating')
+    return Response(ratings)
+
+
+def page6_feedback(request):
+    """反馈与优惠页面"""
+    return render(request, 'page6_feedback-and-discount.html')
