@@ -6,69 +6,13 @@
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <meta name="csrf-token" content="{{ csrf_token }}">
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
-    <style>
-        .wheel-container {
-            position: relative;
-            width: 300px;
-            height: 300px;
-            margin: 0 auto;
-        }
-
-        .wheel {
-            width: 300px;
-            height: 300px;
-            border-radius: 50%;
-            display: block;
-            margin: 0 auto;
-            background: #fff;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-        }
-
-        .wheel-section {
-            position: absolute;
-            width: 50%;
-            height: 50%;
-            transform-origin: bottom right;
-            display: flex;
-            align-items: flex-start;
-            justify-content: flex-start;
-            border: 1px solid rgba(255,255,255,0.3);
-        }
-
-        .wheel-pointer {
-            position: absolute;
-            top: -15px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 0;
-            height: 0;
-            border-left: 15px solid transparent;
-            border-right: 15px solid transparent;
-            border-top: 30px solid #DC2626;
-            z-index: 10;
-            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
-        }
-
-        .wheel-section::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            clip-path: polygon(0 0, 100% 0, 0 100%);
-            background: inherit;
-        }
-    </style>
 </head>
 <body class="bg-gray-100 min-h-screen">
 <div class="container mx-auto px-4 py-8 max-w-md">
     <!-- 訂單項目顯示區 -->
     <div id="order-items-section" class="bg-white rounded-lg shadow-md p-6 mb-6">
         <h2 class="text-xl font-bold mb-4">您的訂單內容</h2>
-        <div id="order-items-list" class="space-y-2">
-            <!-- 訂單項目將由JS動態載入 -->
-        </div>
+        <div id="order-items-list" class="space-y-2"></div>
     </div>
 
     <!-- 評價區 -->
@@ -87,41 +31,33 @@
         </button>
     </div>
 
-    <!-- 抽獎區 (初始隱藏) -->
-    <div id="lottery-section" class="hidden bg-white rounded-lg shadow-md p-6 mb-6">
-        <h2 class="text-2xl font-bold mb-4 text-center">折價券抽獎</h2>
-        <div class="wheel-container">
-            <div class="wheel-pointer"></div>
-            <svg id="wheel" class="wheel" width="300" height="300" viewBox="0 0 300 300"></svg>
-        </div>
-        <div id="result" class="mt-4 text-center text-xl font-bold"></div>
+    <!-- 中獎結果顯示區 -->
+    <div id="result-section" class="hidden bg-white rounded-lg shadow-md p-6 mb-6">
+        <h2 class="text-2xl font-bold mb-4 text-center">抽獎結果</h2>
+        <div id="result" class="text-center text-xl font-bold"></div>
     </div>
 
     <!-- 折價券顯示區 -->
     <div id="coupon-section" class="bg-white rounded-lg shadow-md p-6">
         <h2 class="text-2xl font-bold mb-4">我的折價券</h2>
-        <div id="coupons-list" class="space-y-3">
-            <!-- 折價券將由JS動態載入 -->
-        </div>
+        <div id="coupons-list" class="space-y-3"></div>
     </div>
 </div>
 
 <script>
-    // 設定 axios 預設 CSRF Token header
     axios.defaults.headers.common['X-CSRFToken'] = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 
-    // 初始化變數
     let rating = 0;
     let orderId = new URLSearchParams(window.location.search).get('order_id');
+
     const prizes = [
-        {text: '銘謝惠顧', color: '#F3F4F6', discount: 0, chance: 40},
-        {text: '折10元', color: '#A7F3D0', discount: 10, chance: 30},
-        {text: '折20元', color: '#6EE7B7', discount: 20, chance: 20},
-        {text: '折30元', color: '#34D399', discount: 30, chance: 9},
-        {text: '免單', color: '#10B981', discount: 100, chance: 1}
+        {text: '銘謝惠顧', discount: 0, chance: 40},
+        {text: '折10元', discount: 10, chance: 30},
+        {text: '折20元', discount: 20, chance: 20},
+        {text: '折30元', discount: 30, chance: 9},
+        {text: '免單', discount: 100, chance: 1}
     ];
 
-    // 渲染星星評分
     function renderStars() {
         for (let i = 1; i <= 5; i++) {
             const star = document.getElementById(`star${i}`);
@@ -135,32 +71,34 @@
         }
     }
 
-    // 設定評分
     function setRating(value) {
         rating = value;
         renderStars();
     }
 
-    // 提交評價
     async function submitFeedback() {
         if (!rating) {
             alert('請選擇評分');
             return;
         }
 
+        const selectedPrize = pickPrize();
+        const discount = selectedPrize.discount;
+
         try {
-            // 隱藏評價區，顯示抽獎區
             document.getElementById('feedback-section').classList.add('hidden');
-            document.getElementById('lottery-section').classList.remove('hidden');
+            document.getElementById('result-section').classList.remove('hidden');
 
-            // 立即開始轉盤動畫
-            const discount = spinWheelRandomly();
+            document.getElementById('result').innerHTML = `
+                <div class="p-4 rounded-lg ${discount > 0 ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}">
+                    🎉 恭喜獲得: <strong>${selectedPrize.text}</strong> 🎉
+                </div>
+            `;
 
-            // 提交評價到後端（帶上前端決定的折價券金額）
             const response = await axios.post('/api/submit-feedback/', {
                 order_id: orderId,
                 rating: rating,
-                discount: discount  // 將前端決定的折價券金額傳給後端
+                discount: discount
             });
 
             if (response.data.error) {
@@ -172,108 +110,30 @@
                 return;
             }
 
-            // 重新載入折價券列表
-            setTimeout(() => {
-                loadCoupons();
-            }, 5500); // 等轉盤動畫完成後再載入
-
+            loadCoupons();
         } catch (error) {
             console.error('提交評價失敗:', error);
             alert('提交評價失敗，請稍後再試');
         }
     }
 
-    // 畫圓餅圖
-    function drawWheel() {
-        const svg = document.getElementById('wheel');
-        svg.innerHTML = '';
-        const cx = 150, cy = 150, r = 140;
-        const sectionAngle = 360 / prizes.length;
-
-        for (let i = 0; i < prizes.length; i++) {
-            const startAngle = i * sectionAngle - 90;
-            const endAngle = (i + 1) * sectionAngle - 90;
-            const x1 = cx + r * Math.cos(startAngle * Math.PI / 180);
-            const y1 = cy + r * Math.sin(startAngle * Math.PI / 180);
-            const x2 = cx + r * Math.cos(endAngle * Math.PI / 180);
-            const y2 = cy + r * Math.sin(endAngle * Math.PI / 180);
-            const largeArc = sectionAngle > 180 ? 1 : 0;
-
-            const pathData = [
-                `M ${cx} ${cy}`,
-                `L ${x1} ${y1}`,
-                `A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2}`,
-                'Z'
-            ].join(' ');
-
-            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-            path.setAttribute('d', pathData);
-            path.setAttribute('fill', prizes[i].color);
-            svg.appendChild(path);
-
-            // 文字
-            const textAngle = (startAngle + endAngle) / 2;
-            const tx = cx + (r - 50) * Math.cos(textAngle * Math.PI / 180);
-            const ty = cy + (r - 50) * Math.sin(textAngle * Math.PI / 180) + 8;
-            const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-            text.setAttribute('x', tx);
-            text.setAttribute('y', ty);
-            text.setAttribute('text-anchor', 'middle');
-            text.setAttribute('font-size', '18');
-            text.setAttribute('fill', '#222');
-            text.textContent = prizes[i].text;
-            svg.appendChild(text);
-        }
-        svg.style.transition = 'transform 5s cubic-bezier(0.17, 0.67, 0.12, 0.99)';
-        svg.style.transform = 'rotate(0deg)';
-    }
-
-    // 轉盤動畫與抽獎
-    function spinWheelRandomly() {
-        const svg = document.getElementById('wheel');
-        const resultDiv = document.getElementById('result');
-
-        // 隨機選獎
+    function pickPrize() {
         const random = Math.random() * 100;
         let cumulativeChance = 0;
-        let selectedIndex = 0;
-        let selectedPrize = prizes[0];
         for (let i = 0; i < prizes.length; i++) {
             cumulativeChance += prizes[i].chance;
             if (random <= cumulativeChance) {
-                selectedPrize = prizes[i];
-                selectedIndex = i;
-                break;
+                return prizes[i];
             }
         }
-
-        // 算旋轉角度
-        const sectionAngle = 360 / prizes.length;
-        const stopAngle = selectedIndex * sectionAngle + sectionAngle / 2;
-        const rotations = 5 + Math.random() * 3;
-        const totalRotation = rotations * 360 - stopAngle;
-
-        svg.style.transition = 'transform 5s cubic-bezier(0.17, 0.67, 0.12, 0.99)';
-        svg.style.transform = `rotate(${totalRotation}deg)`;
-
-        setTimeout(() => {
-            resultDiv.innerHTML = `
-                <div class="p-4 rounded-lg ${selectedPrize.discount > 0 ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}">
-                    🎉 恭喜獲得: <strong>${selectedPrize.text}</strong> 🎉
-                </div>
-            `;
-        }, 5000);
-
-        return selectedPrize.discount;
+        return prizes[0];
     }
 
-    // 載入訂單項目
     function loadOrderItems() {
         axios.get(`/api/orders/${orderId}/`)
             .then(response => {
                 const order = response.data;
                 const container = document.getElementById('order-items-list');
-
                 container.innerHTML = order.items.map(item => `
                     <div class="flex justify-between py-2 border-b border-gray-100">
                         <span>${item.name} x ${item.quantity}</span>
@@ -286,7 +146,6 @@
             });
     }
 
-    // 載入折價券
     function loadCoupons() {
         axios.get('/api/get-coupons/')
             .then(response => {
@@ -310,7 +169,6 @@
             });
     }
 
-    // 輔助函數
     function getCouponColor(type) {
         const colors = {
             '10': 'bg-green-100 border-green-300',
@@ -333,14 +191,11 @@
         return texts[type] || '折價券';
     }
 
-    // 頁面載入時初始化
     document.addEventListener('DOMContentLoaded', () => {
-        drawWheel();
         loadOrderItems();
         loadCoupons();
         renderStars();
 
-        // 檢查訂單是否已完成
         axios.get(`/api/orders/${orderId}/`)
             .then(response => {
                 if (response.data.status !== '完成') {
