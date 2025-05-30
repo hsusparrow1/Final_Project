@@ -11,23 +11,17 @@
 <div class="container mx-auto px-4 py-8 max-w-md">
     <!-- 訂單項目顯示區 -->
     <div id="order-items-section" class="bg-white rounded-lg shadow-md p-6 mb-6">
-        <h2 class="text-xl font-bold mb-4">您的訂單內容</h2>
+        <h2 class="text-xl font-bold mb-4">您的訂單內容 (請為商品評分以參與抽獎)</h2>
         <div id="order-items-list" class="space-y-2"></div>
     </div>
 
-    <!-- 評價區 -->
+    <!-- 抽獎按鈕區 (原評價區簡化) -->
     <div id="feedback-section" class="bg-white rounded-lg shadow-md p-6 mb-6">
-        <h1 class="text-2xl font-bold mb-4 text-center">餐點評價</h1>
-        <div class="flex justify-center mb-4">
-            <button onclick="setRating(1)" class="text-4xl mx-1 focus:outline-none" id="star1">★</button>
-            <button onclick="setRating(2)" class="text-4xl mx-1 focus:outline-none" id="star2">★</button>
-            <button onclick="setRating(3)" class="text-4xl mx-1 focus:outline-none" id="star3">★</button>
-            <button onclick="setRating(4)" class="text-4xl mx-1 focus:outline-none" id="star4">★</button>
-            <button onclick="setRating(5)" class="text-4xl mx-1 focus:outline-none" id="star5">★</button>
-        </div>
-        <button onclick="submitFeedback()"
+        <h1 class="text-2xl font-bold mb-4 text-center">完成商品評價並抽獎</h1>
+        <!-- 移除了訂單整體評價的星星 -->
+        <button id="main-feedback-button" onclick="submitFeedback()"
                 class="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg font-bold">
-            提交評價並抽獎
+            參與抽獎
         </button>
     </div>
 
@@ -47,8 +41,8 @@
 <script>
     axios.defaults.headers.common['X-CSRFToken'] = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 
-    let rating = 0;
     let orderId = new URLSearchParams(window.location.search).get('order_id');
+    let hasRatedAnyItem = false; // 保持全局變數
 
     const prizes = [
         {text: '銘謝惠顧', discount: 0, chance: 40},
@@ -58,27 +52,14 @@
         {text: '免單', discount: 100, chance: 1}
     ];
 
-    function renderStars() {
-        for (let i = 1; i <= 5; i++) {
-            const star = document.getElementById(`star${i}`);
-            if (i <= rating) {
-                star.classList.add('text-yellow-400');
-                star.classList.remove('text-gray-300');
-            } else {
-                star.classList.add('text-gray-300');
-                star.classList.remove('text-yellow-400');
-            }
-        }
-    }
-
-    function setRating(value) {
-        rating = value;
-        renderStars();
+    function redirectToLogin() {
+        // 導向到 login_view 處理的路徑, 即 /login/
+        window.location.href = `/login/?next=${encodeURIComponent(window.location.pathname + window.location.search)}`;
     }
 
     async function submitFeedback() {
-        if (!rating) {
-            alert('請選擇評分');
+        if (!hasRatedAnyItem) {
+            alert('請先為訂單中的至少一個商品評分，然後才能參與抽獎。');
             return;
         }
 
@@ -97,23 +78,37 @@
 
             const response = await axios.post('/api/submit-feedback/', {
                 order_id: orderId,
-                rating: rating,
                 discount: discount
             });
 
-            if (response.data.error) {
-                if (response.data.error === '請先登入') {
-                    window.location.href = `/page0_login/?next=/page6_feedback/?order_id=${orderId}`;
-                } else {
-                    alert(response.data.error);
-                }
+            if (response.data.success || response.status === 201 || response.status === 200) {
+                // 抽獎成功
+            } else {
+                // 雖然成功響應，但後端標記為錯誤
+                alert(response.data.error || '抽獎請求處理異常。');
+                document.getElementById('feedback-section').classList.remove('hidden');
+                document.getElementById('result-section').classList.add('hidden');
                 return;
             }
-
             loadCoupons();
+
         } catch (error) {
-            console.error('提交評價失敗:', error);
-            alert('提交評價失敗，請稍後再試');
+            console.error('提交抽獎請求失敗:', error);
+            if (error.response) {
+                if (error.response.status === 401) { // HTTP 401 Unauthorized
+                    alert('您需要登入才能參與抽獎。將為您導向登入頁面。');
+                    redirectToLogin();
+                    return; // 避免執行後續代碼
+                } else if (error.response.data && error.response.data.error) {
+                    alert('抽獎失敗：' + error.response.data.error);
+                } else {
+                    alert('抽獎失敗，請稍後再試。');
+                }
+            } else {
+                alert('抽獎失敗，網路錯誤或伺服器無響應。');
+            }
+            document.getElementById('feedback-section').classList.remove('hidden');
+            document.getElementById('result-section').classList.add('hidden');
         }
     }
 
@@ -126,7 +121,33 @@
                 return prizes[i];
             }
         }
-        return prizes[0];
+        return prizes[0]; // Default prize
+    }
+
+    function updateMainFeedbackButtonState() {
+        const mainFeedbackButton = document.getElementById('main-feedback-button');
+        if (!mainFeedbackButton) return;
+
+        // 檢查訂單是否已抽獎 (這個狀態應該從 orderData 中獲取)
+        // 假設我們有一個變數來存儲訂單是否已抽獎
+        const orderAlreadyDrawn = mainFeedbackButton.textContent === '此訂單已抽獎'; // 簡易判斷
+
+        if (orderAlreadyDrawn) {
+            mainFeedbackButton.disabled = true;
+            mainFeedbackButton.classList.add('opacity-50', 'cursor-not-allowed', 'bg-gray-400');
+            mainFeedbackButton.classList.remove('bg-blue-500', 'hover:bg-blue-600');
+        } else if (hasRatedAnyItem) {
+            mainFeedbackButton.disabled = false;
+            mainFeedbackButton.classList.remove('opacity-50', 'cursor-not-allowed');
+            // 可以恢復按鈕的原始樣式，如果之前被修改過
+            mainFeedbackButton.classList.add('bg-blue-500', 'hover:bg-blue-600');
+            mainFeedbackButton.classList.remove('bg-gray-400');
+        } else {
+            mainFeedbackButton.disabled = true;
+            mainFeedbackButton.classList.add('opacity-50', 'cursor-not-allowed');
+            // 如果需要，可以確保它是預設的禁用樣式
+            // mainFeedbackButton.classList.add('bg-blue-500'); // 或者保持其當前顏色但禁用
+        }
     }
 
     function loadOrderItems() {
@@ -134,20 +155,137 @@
             .then(response => {
                 const order = response.data;
                 const container = document.getElementById('order-items-list');
-                container.innerHTML = order.items.map(item => `
-                    <div class="flex justify-between py-2 border-b border-gray-100">
-                        <span>${item.name} x ${item.quantity}</span>
-                        <span>$${item.price}</span>
+                const mainFeedbackButton = document.getElementById('main-feedback-button'); // 獲取按鈕引用
+
+                // 重置 hasRatedAnyItem，因為我們要根據當前訂單重新判斷
+                // hasRatedAnyItem = false; // 這一行可能不需要，因為全局變數在頁面加載時已經是 false
+
+                if (order.has_participated_in_draw) {
+                    if(mainFeedbackButton) {
+                        mainFeedbackButton.disabled = true;
+                        mainFeedbackButton.textContent = '此訂單已抽獎';
+                        mainFeedbackButton.classList.add('opacity-50', 'cursor-not-allowed', 'bg-gray-400');
+                        mainFeedbackButton.classList.remove('bg-blue-500', 'hover:bg-blue-600');
+                    }
+                    document.getElementById('feedback-section').querySelector('h1').textContent = '抽獎活動已完成';
+                    container.innerHTML = '<p class="text-gray-500">此訂單已參與過抽獎活動，感謝您的評價。</p>';
+                    updateMainFeedbackButtonState(); // 更新按鈕狀態
+                    return;
+                }
+
+                if (!order.items || order.items.length === 0) {
+                    container.innerHTML = '<p class="text-gray-500">此訂單沒有商品可供評價。</p>';
+                    if(mainFeedbackButton) mainFeedbackButton.disabled = true;
+                    updateMainFeedbackButtonState(); // 更新按鈕狀態
+                    return;
+                }
+
+                // 渲染商品列表
+                container.innerHTML = order.items.map((item, index) => `
+                    <div class="py-3 border-b border-gray-200">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="font-semibold">${item.name} (x${item.quantity})</span>
+                            <span>$${item.price}</span>
+                        </div>
+                        <div class="flex items-center space-x-1" id="stars-for-item-${item.menu_item_id || item.id}">
+                            ${[1, 2, 3, 4, 5].map(starValue => `
+                                <button
+                                    class="text-3xl text-gray-300 hover:text-yellow-400 focus:outline-none star-button"
+                                    data-menu-id="${item.menu_item_id || item.id}"
+                                    data-rating-value="${starValue}"
+                                    onclick="handleItemStarClick(this, ${item.menu_item_id || item.id}, ${starValue})">
+                                    ★
+                                </button>
+                            `).join('')}
+                        </div>
                     </div>
                 `).join('');
+
+                // 假設：如果 loadOrderItems 成功執行到這裡，並且訂單未抽獎且有商品，
+                // 我們需要一個方法來檢查是否已經有評價。
+                // 由於 MenuRating 是基於 user_session，前端無法直接知道登入用戶是否已評價。
+                // 為了簡化，我們依賴於用戶再次點擊評價。
+                // 如果您有一個 API 可以獲取當前用戶對這些商品的評價，可以在這裡調用並更新 hasRatedAnyItem。
+                // 例如:
+                // checkIfAnyItemRatedAndUpdateButton(order.items);
+
+                updateMainFeedbackButtonState(); // 初始更新一次按鈕狀態
             })
             .catch(error => {
                 console.error('載入訂單項目失敗:', error);
+                if (error.response && error.response.status === 401) {
+                     // 雖然 get_order_detail 目前不強制登入，但以防萬一
+                    alert('您需要登入才能查看訂單詳情並評價。將為您導向登入頁面。');
+                    redirectToLogin();
+                } else {
+                    const container = document.getElementById('order-items-list');
+                    if(container) container.innerHTML = '<p class="text-red-500">載入訂單項目失敗，請稍後再試。</p>';
+                    const mainFeedbackButton = document.getElementById('main-feedback-button');
+                    if(mainFeedbackButton) mainFeedbackButton.disabled = true;
+                }
+                updateMainFeedbackButtonState(); // 錯誤情況下也更新按鈕狀態
             });
     }
 
+    function handleItemStarClick(buttonElement, menuId, ratingValue) {
+        const starContainer = document.getElementById(`stars-for-item-${menuId}`);
+        const buttons = starContainer.querySelectorAll('.star-button');
+        buttons.forEach(btn => {
+            if (parseInt(btn.dataset.ratingValue) <= ratingValue) {
+                btn.classList.remove('text-gray-300');
+                btn.classList.add('text-yellow-400');
+            } else {
+                btn.classList.remove('text-yellow-400');
+                btn.classList.add('text-gray-300');
+            }
+        });
+        submitRating(menuId, ratingValue);
+    }
+
+    async function submitRating(menuId, ratingValue) {
+        try {
+            const response = await axios.post('/api/submit-rating/', {
+                menu_id: menuId,
+                rating: ratingValue
+            });
+
+            if (response.data.success) {
+                const starContainer = document.getElementById(`stars-for-item-${menuId}`);
+                if (starContainer) {
+                    // buttons.forEach(btn => btn.disabled = true); // 允許重複評價
+                    let feedbackMsg = starContainer.querySelector('.rating-feedback-msg');
+                    if (!feedbackMsg) {
+                        feedbackMsg = document.createElement('span');
+                        feedbackMsg.className = 'text-sm text-green-600 ml-2 rating-feedback-msg';
+                        starContainer.appendChild(feedbackMsg);
+                    }
+                    feedbackMsg.textContent = '感謝您的評分！';
+                    setTimeout(() => {
+                        if (feedbackMsg) feedbackMsg.textContent = '';
+                    }, 3000);
+                }
+
+                // 關鍵：只要有任何一次成功的評分提交，就設置 hasRatedAnyItem 為 true
+                hasRatedAnyItem = true;
+                updateMainFeedbackButtonState(); // 每次成功評分後都更新按鈕狀態
+
+            } else {
+                alert('商品評分提交失敗：' + (response.data.error || '未知錯誤'));
+            }
+        } catch (error) {
+            console.error('提交商品評分時發生錯誤:', error);
+            if (error.response && error.response.status === 401) {
+                // 如果 /api/submit-rating/ 也需要登入
+                alert('您需要登入才能提交商品評分。將為您導向登入頁面。');
+                redirectToLogin();
+            } else {
+                alert('商品評分提交失敗，請稍後再試');
+            }
+        }
+    }
+
     function loadCoupons() {
-        axios.get('/api/get-coupons/')
+        axios.get('/api/get-coupons/') // 後端 get_user_coupons 已有登入檢查
             .then(response => {
                 const container = document.getElementById('coupons-list');
                 if (response.data.length === 0) {
@@ -166,6 +304,14 @@
             })
             .catch(error => {
                 console.error('載入折價券失敗:', error);
+                if (error.response && error.response.status === 401) {
+                    const container = document.getElementById('coupons-list');
+                    // 修改這裡的連結，確保它也指向 /login/
+                    container.innerHTML = '<p class="text-gray-500">請<a href="/login/?next=' + encodeURIComponent(window.location.pathname + window.location.search) + '" class="text-blue-500 hover:underline">登入</a>以查看您的折價券。</p>';
+                } else {
+                    const container = document.getElementById('coupons-list');
+                    container.innerHTML = '<p class="text-red-500">載入折價券失敗，請稍後再試。</p>';
+                }
             });
     }
 
@@ -192,19 +338,46 @@
     }
 
     document.addEventListener('DOMContentLoaded', () => {
-        loadOrderItems();
-        loadCoupons();
-        renderStars();
+        // const mainFeedbackButton = document.getElementById('main-feedback-button');
+        // if (mainFeedbackButton) {
+        //     mainFeedbackButton.disabled = true; // 初始禁用
+        //     mainFeedbackButton.classList.add('opacity-50', 'cursor-not-allowed');
+        // }
+        // 初始的按鈕狀態將由 updateMainFeedbackButtonState 在 loadOrderItems 完成後處理
+
+        if (!orderId) {
+            alert('未指定訂單 ID，無法評價。');
+            document.getElementById('order-items-section').innerHTML = '<p class="text-red-500">錯誤：未提供訂單ID。</p>';
+            document.getElementById('feedback-section').classList.add('hidden');
+            document.getElementById('coupon-section').classList.add('hidden');
+            return;
+        }
 
         axios.get(`/api/orders/${orderId}/`)
             .then(response => {
-                if (response.data.status !== '完成') {
-                    alert('訂單尚未完成，無法評價');
-                    window.location.href = '/page5_order_status/?order_id=' + orderId;
+                const orderData = response.data;
+                if (orderData.status !== '完成') {
+                    alert('訂單尚未完成，無法評價。');
+                    window.location.href = `/page5_order_status/?order_id=${orderId}`;
+                } else {
+                    loadOrderItems();
+                    loadCoupons();
+                    // 按鈕狀態的更新現在主要由 loadOrderItems 內部調用 updateMainFeedbackButtonState() 控制
                 }
             })
             .catch(error => {
                 console.error('檢查訂單狀態失敗:', error);
+                if (error.response && error.response.status === 401) {
+                    alert('您需要登入才能查看此訂單。將為您導向登入頁面。');
+                    redirectToLogin();
+                } else {
+                    alert('檢查訂單狀態失敗，請稍後再試。');
+                    const mainFeedbackButton = document.getElementById('main-feedback-button');
+                    if (mainFeedbackButton) {
+                        mainFeedbackButton.disabled = true;
+                        mainFeedbackButton.classList.add('opacity-50', 'cursor-not-allowed');
+                    }
+                }
             });
     });
 </script>

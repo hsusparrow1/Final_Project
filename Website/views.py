@@ -10,11 +10,12 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.db import transaction, connection
+from django.db.models import Avg, Count
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
 
 # 專案模型與序列化器導入
-from .models import UserProfile, Feedback, Coupon, MenuItem, Order, OrderItem
+from .models import UserProfile, Feedback, Coupon, MenuItem, Order, OrderItem, MenuRating
 from .serializers import MenuItemSerializer, CouponSerializer
 
 # REST Framework 相關導入
@@ -44,14 +45,23 @@ def login_view(request):
     if request.method == 'POST':
         username = request.POST.get('username')
         password = request.POST.get('password')
+        next_url = request.POST.get('next', None) # 從 POST 獲取 next (如果表單有) 或從 GET
+        if not next_url:
+            next_url = request.GET.get('next', None)
+
 
         user = authenticate(request, username=username, password=password)
         if user is not None:
             login(request, user)
-            return redirect('page1')
+            if next_url: # 如果有 next 參數，跳轉到該 URL
+                return redirect(next_url)
+            return redirect('page1') # 預設跳轉到 page1
         else:
-            return render(request, 'page0_login.html', {'error_message': '用戶名或密碼不正確'})
-    return redirect('page0')
+            return render(request, 'page0_login.html', {'error_message': '用戶名或密碼不正確', 'next': next_url})
+    
+    # 如果是 GET 請求，也傳遞 next 參數給模板
+    next_url_get = request.GET.get('next', '')
+    return render(request, 'page0_login.html', {'next': next_url_get}) # 修改這裡，確保 GET 請求也能渲染登入頁
 
 
 def register_view(request):
@@ -282,6 +292,11 @@ def get_order_detail(request, order_id):
     order = get_object_or_404(Order, order_id=order_id)
 
     if request.method == 'GET':
+        has_participated = False
+        # 只有在用戶已登入的情況下才檢查是否已參與抽獎
+        if request.user.is_authenticated:
+            has_participated = Feedback.objects.filter(order=order, user=request.user).exists()
+        
         data = {
             'order_id': str(order.order_id),
             'sequence_number': order.sequence_number,
@@ -289,10 +304,12 @@ def get_order_detail(request, order_id):
             'total_price': order.total_price,
             'created_at': order.created_at,
             'status': order.status,
-            'coupon_type': getattr(getattr(order, 'coupon', None), 'coupon_type', None),  # 安全取得折價券資訊
+            'coupon_type': getattr(getattr(order, 'coupon', None), 'coupon_type', None),
             'coupon_code': getattr(getattr(order, 'coupon', None), 'code', None),
+            'has_participated_in_draw': has_participated, # 新增此欄位
             'items': [
                 {
+                    'menu_item_id': item.menu_item.id, 
                     'name': item.menu_item.name,
                     'quantity': item.quantity,
                     'price': item.price
@@ -483,24 +500,39 @@ def submit_feedback(request):
         return Response({'error': '請先登入'}, status=401)
 
     order_id = request.data.get('order_id')
-    rating = request.data.get('rating')
-    discount = request.data.get('discount', 0)  # 接收前端傳來的折價券金額
+    discount = request.data.get('discount', 0)
 
     try:
-        order = Order.objects.get(order_id=order_id, status='完成')
+        # 嘗試找到訂單，訂單必須是 '完成' 狀態
+        # 它可以屬於當前登入的用戶，或者是一個匿名訂單
+        possible_orders_query = Order.objects.filter(order_id=order_id, status='完成')
+        
+        order = possible_orders_query.filter(user=request.user).first()
+        
+        if not order:
+            # 如果找不到屬於當前用戶的訂單，則檢查是否為匿名訂單
+            order = possible_orders_query.filter(user__isnull=True).first()
+        
+        if not order:
+            # 如果仍然找不到訂單，則表示訂單不存在或不符合條件
+            raise Order.DoesNotExist
 
-        # 檢查是否已評價過
+        # 檢查此用戶是否已對此訂單提交過回饋 (參與過抽獎)
         if Feedback.objects.filter(order=order, user=request.user).exists():
-            return Response({'error': '您已評價過此訂單'}, status=400)
+            # 此處可以根據您的業務邏輯決定是否允許重複抽獎或提示已參與
+            # 目前的程式碼是 pass，即允許繼續執行 (可能導致重複創建 Feedback 或 Coupon)
+            # 如果不允許重複，應返回錯誤：
+            # return Response({'error': '您已參與過此訂單的抽獎活動'}, status=status.HTTP_400_BAD_REQUEST)
+            pass # 暫時允許，但您可能需要更精確的邏輯來防止重複抽獎
 
-        # 儲存評價
-        feedback = Feedback.objects.create(
+        Feedback.objects.update_or_create(
             user=request.user,
             order=order,
-            rating=rating
+            defaults={
+                # 'rating': rating, # 如果 rating 字段允許 null 或有預設值
+            }
         )
 
-        # 如果不是銘謝惠顧才產生折價券
         if discount > 0:
             coupon = Coupon.objects.create(
                 user=request.user,
@@ -514,14 +546,17 @@ def submit_feedback(request):
                 'discount': discount
             })
         else:
-            # 銘謝惠顧不產生折價券
             return Response({
                 'success': True,
-                'discount': 0
+                'discount': 0,
+                'message': '銘謝惠顧'
             })
 
     except Order.DoesNotExist:
-        return Response({'error': '訂單不存在或尚未完成'}, status=404)
+        return Response({'error': '訂單不存在、非您本人或尚未完成'}, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        logger.error(f"Feedback submission/draw error for order {order_id}: {str(e)}")
+        return Response({'error': '處理抽獎請求時發生錯誤'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['GET'])
@@ -537,12 +572,55 @@ def get_user_coupons(request):
     )
     return Response(CouponSerializer(coupons, many=True).data)
 
+@csrf_exempt
+def submit_rating(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            menu_id = data.get('menu_id')
+            rating_value = data.get('rating') # 變數名改為 rating_value 以免與模型字段混淆
+
+            if not menu_id or rating_value is None:
+                return JsonResponse({'success': False, 'error': '缺少 menu_id 或 rating'}, status=400)
+
+            if not request.session.session_key:
+                request.session.create()
+            user_session = request.session.session_key
+
+            menu_item_instance = MenuItem.objects.get(id=menu_id) # 確保是 MenuItem
+
+            rating_obj, created = MenuRating.objects.update_or_create(
+                menu_item=menu_item_instance,
+                user_session=user_session,
+                defaults={'rating': rating_value}
+            )
+            logger.info(f"評分已保存或更新: {rating_obj} (Created: {created})") # 添加日誌
+            return JsonResponse({'success': True, 'message': '評分已保存'})
+        except MenuItem.DoesNotExist:
+            logger.error(f"提交評分失敗: 找不到 ID 為 {menu_id} 的 MenuItem")
+            return JsonResponse({'success': False, 'error': '找不到指定的菜單項目'}, status=404)
+        except Exception as e:
+            logger.error(f"提交評分時發生未預期錯誤: {str(e)}")
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)
+    return JsonResponse({'success': False, 'error': '無效的請求方法'}, status=405)
 
 @api_view(['GET'])
 def get_menu_ratings(request):
-    """獲取餐點平均評分"""
-    from django.db.models import Avg
-    ratings = MenuItem.objects.annotate(
-        avg_rating=Avg('orderitem__order__feedback__rating')
-    ).values('id', 'name', 'avg_rating')
-    return Response(ratings)
+    try:
+        # 使用 MenuItem 而不是 Menu
+        menu_items = MenuItem.objects.annotate(
+            avg_rating=Avg('ratings__rating'),
+            rating_count=Count('ratings')
+        ).values('id', 'name', 'avg_rating', 'rating_count')
+        
+        ratings_data = {}
+        for item in menu_items:
+            ratings_data[item['id']] = {
+                'avg_rating': round(item['avg_rating'], 1) if item['avg_rating'] else 0,
+                'rating_count': item['rating_count'] or 0
+            }
+        
+        return JsonResponse(ratings_data)
+    except Exception as e:
+        print(f"獲取評分數據錯誤: {e}")
+        return JsonResponse({})

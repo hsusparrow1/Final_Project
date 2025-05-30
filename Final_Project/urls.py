@@ -13,7 +13,7 @@ urlpatterns = [
     path('admin_dashboard/', views.admin_dashboard, name='admin_dashboard'),  # 店家自訂管理頁面
 
     # 認證相關路由
-    path('login/', login_view, name='login'),
+    path('login/', views.login_view, name='login_view'),  # <--- 新增 name='login_view'
     path('register/', register_view, name='register'),
     path('logout/', logout_view, name='logout'),
     path('api/check-auth/', check_auth, name='check_auth'),
@@ -47,18 +47,16 @@ urlpatterns = [
     path('api/submit-feedback/', views.submit_feedback, name='submit_feedback'),  # 重要：確保這行存在
     path('api/get-coupons/', views.get_user_coupons, name='get_user_coupons'),
     path('api/menu-ratings/', views.get_menu_ratings, name='get_menu_ratings'),
+    path('api/submit-rating/', views.submit_rating, name='submit_rating'),
     
     # 管理後台登入路由（公開訪問）
-    path('admin_dashboard/login/', admin_dashboard_login, name='admin_dashboard_login'),
-    path('admin_dashboard/auth/', admin_dashboard_auth, name='admin_dashboard_auth'),
+    path('admin_dashboard/login/', views.admin_dashboard_login, name='admin_dashboard_login'),
+    path('admin_dashboard/auth/', views.admin_dashboard_auth, name='admin_dashboard_auth'),
 
     # 保護的管理後台主頁（需要登入）
-    path('admin_dashboard/', login_required(admin_dashboard, login_url='/admin_dashboard/login/'),
-         name='admin_dashboard'),
+    path('admin_dashboard/', login_required(views.admin_dashboard, login_url='/admin_dashboard/login/'), name='admin_dashboard'),
+
     path('page6_feedback/', views.page6_feedback, name='page6_feedback'),
-    path('api/submit-feedback/', views.submit_feedback, name='submit_feedback'),
-    path('api/get-coupons/', views.get_user_coupons, name='get_coupons'),
-    path('api/menu-ratings/', views.get_menu_ratings, name='menu_ratings'),
 ]
 
 # 在開發環境中提供媒體文件服務
