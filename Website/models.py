@@ -107,11 +107,19 @@ class UserProfile(models.Model):
 class Feedback(models.Model):
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     order = models.ForeignKey(Order, on_delete=models.CASCADE)
-    rating = models.PositiveSmallIntegerField(choices=[(i, str(i)) for i in range(1, 6)])  # 1-5星
+    rating = models.PositiveSmallIntegerField(choices=[(i, str(i)) for i in range(1, 6)], null=True, blank=True)  # 修改此行，添加 null=True, blank=True
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ('user', 'order')  # 防止重複評價
+        unique_together = ('user', 'order') # 防止重複評價
+        # 如果您希望允許同一個用戶對同一個訂單提交多次 feedback (例如一次是抽獎記錄，一次是之後的評論)，
+        # 您可能需要移除 unique_together 或者調整其欄位。
+        # 但如果 Feedback 僅用於記錄抽獎，且每個訂單只能抽獎一次，則保留 unique_together 是合理的。
+
+    def __str__(self): # 建議添加 __str__ 方法以便於管理
+        if self.user:
+            return f"Feedback for Order {self.order.order_id} by {self.user.username}"
+        return f"Feedback for Order {self.order.order_id} (Anonymous or System)"
 
 
 class Coupon(models.Model):
@@ -132,3 +140,26 @@ class Coupon(models.Model):
 
     def __str__(self):
         return f"{self.get_coupon_type_display()} (到期: {self.valid_until.strftime('%Y-%m-%d')})"
+
+class Menu(models.Model):
+    name = models.CharField(max_length=100)
+    description = models.TextField()
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+    image = models.ImageField(upload_to='menu_images/')
+    category = models.CharField(max_length=50)
+    available = models.BooleanField(default=True)
+
+    def __str__(self):
+        return self.name
+    
+class MenuRating(models.Model):
+    menu_item = models.ForeignKey(MenuItem, on_delete=models.CASCADE, related_name='ratings')
+    user_session = models.CharField(max_length=255)  # 使用 session 來識別用戶
+    rating = models.IntegerField(choices=[(i, i) for i in range(1, 6)])  # 1-5 星評分
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        unique_together = ['menu_item', 'user_session']  # 每個用戶對每個商品只能評分一次
+    
+    def __str__(self):
+        return f"{self.menu_item.name} - {self.rating}星"

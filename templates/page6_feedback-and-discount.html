@@ -11,23 +11,17 @@
 <div class="container mx-auto px-4 py-8 max-w-md">
     <!-- 訂單項目顯示區 -->
     <div id="order-items-section" class="bg-white rounded-lg shadow-md p-6 mb-6">
-        <h2 class="text-xl font-bold mb-4">您的訂單內容</h2>
+        <h2 class="text-xl font-bold mb-4">您的訂單內容 (請為商品評分以參與抽獎)</h2>
         <div id="order-items-list" class="space-y-2"></div>
     </div>
 
-    <!-- 評價區 -->
+    <!-- 抽獎按鈕區 (原評價區簡化) -->
     <div id="feedback-section" class="bg-white rounded-lg shadow-md p-6 mb-6">
-        <h1 class="text-2xl font-bold mb-4 text-center">餐點評價</h1>
-        <div class="flex justify-center mb-4">
-            <button onclick="setRating(1)" class="text-4xl mx-1 focus:outline-none" id="star1">★</button>
-            <button onclick="setRating(2)" class="text-4xl mx-1 focus:outline-none" id="star2">★</button>
-            <button onclick="setRating(3)" class="text-4xl mx-1 focus:outline-none" id="star3">★</button>
-            <button onclick="setRating(4)" class="text-4xl mx-1 focus:outline-none" id="star4">★</button>
-            <button onclick="setRating(5)" class="text-4xl mx-1 focus:outline-none" id="star5">★</button>
-        </div>
-        <button onclick="submitFeedback()"
+        <h1 class="text-2xl font-bold mb-4 text-center">完成商品評價並抽獎</h1>
+        <!-- 移除了訂單整體評價的星星 -->
+        <button id="main-feedback-button" onclick="submitFeedback()"
                 class="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg font-bold">
-            提交評價並抽獎
+            參與抽獎
         </button>
     </div>
 
@@ -47,8 +41,9 @@
 <script>
     axios.defaults.headers.common['X-CSRFToken'] = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 
-    let rating = 0;
+    // let rating = 0; // 不再需要訂單整體評分
     let orderId = new URLSearchParams(window.location.search).get('order_id');
+    let hasRatedAnyItem = false; // 追蹤是否有任何商品被評分
 
     const prizes = [
         {text: '銘謝惠顧', discount: 0, chance: 40},
@@ -58,35 +53,21 @@
         {text: '免單', discount: 100, chance: 1}
     ];
 
-    function renderStars() {
-        for (let i = 1; i <= 5; i++) {
-            const star = document.getElementById(`star${i}`);
-            if (i <= rating) {
-                star.classList.add('text-yellow-400');
-                star.classList.remove('text-gray-300');
-            } else {
-                star.classList.add('text-gray-300');
-                star.classList.remove('text-yellow-400');
-            }
-        }
-    }
+    // function renderStars() { ... } // 不再需要
+    // function setRating(value) { ... } // 不再需要
 
-    function setRating(value) {
-        rating = value;
-        renderStars();
-    }
-
-    async function submitFeedback() {
-        if (!rating) {
-            alert('請選擇評分');
+    async function submitFeedback() { // 抽獎函數
+        if (!hasRatedAnyItem) {
+            alert('請先為訂單中的至少一個商品評分，然後才能參與抽獎。');
             return;
         }
+        // if (!rating) { ... } // 移除了對整體訂單評分的檢查
 
         const selectedPrize = pickPrize();
         const discount = selectedPrize.discount;
 
         try {
-            document.getElementById('feedback-section').classList.add('hidden');
+            document.getElementById('feedback-section').classList.add('hidden'); // 隱藏抽獎按鈕區
             document.getElementById('result-section').classList.remove('hidden');
 
             document.getElementById('result').innerHTML = `
@@ -97,8 +78,8 @@
 
             const response = await axios.post('/api/submit-feedback/', {
                 order_id: orderId,
-                rating: rating,
-                discount: discount
+                // rating: rating, // 不再傳遞訂單整體評分
+                discount: discount // 只傳遞抽獎結果
             });
 
             if (response.data.error) {
@@ -107,13 +88,17 @@
                 } else {
                     alert(response.data.error);
                 }
+                document.getElementById('feedback-section').classList.remove('hidden');
+                document.getElementById('result-section').classList.add('hidden');
                 return;
             }
 
             loadCoupons();
         } catch (error) {
-            console.error('提交評價失敗:', error);
-            alert('提交評價失敗，請稍後再試');
+            console.error('提交抽獎請求失敗:', error);
+            alert('抽獎失敗，請稍後再試');
+            document.getElementById('feedback-section').classList.remove('hidden');
+            document.getElementById('result-section').classList.add('hidden');
         }
     }
 
@@ -126,7 +111,7 @@
                 return prizes[i];
             }
         }
-        return prizes[0];
+        return prizes[0]; // Default prize
     }
 
     function loadOrderItems() {
@@ -134,16 +119,94 @@
             .then(response => {
                 const order = response.data;
                 const container = document.getElementById('order-items-list');
-                container.innerHTML = order.items.map(item => `
-                    <div class="flex justify-between py-2 border-b border-gray-100">
-                        <span>${item.name} x ${item.quantity}</span>
-                        <span>$${item.price}</span>
+                if (!order.items || order.items.length === 0) {
+                    container.innerHTML = '<p class="text-gray-500">此訂單沒有商品可供評價。</p>';
+                    // 如果沒有商品，也禁用抽獎按鈕
+                    const mainFeedbackButton = document.getElementById('main-feedback-button');
+                    if(mainFeedbackButton) mainFeedbackButton.disabled = true;
+                    return;
+                }
+                container.innerHTML = order.items.map((item, index) => `
+                    <div class="py-3 border-b border-gray-200">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="font-semibold">${item.name} (x${item.quantity})</span>
+                            <span>$${item.price}</span>
+                        </div>
+                        <div class="flex items-center space-x-1" id="stars-for-item-${item.menu_item_id || item.id}">
+                            ${[1, 2, 3, 4, 5].map(starValue => `
+                                <button 
+                                    class="text-3xl text-gray-300 hover:text-yellow-400 focus:outline-none star-button"
+                                    data-menu-id="${item.menu_item_id || item.id}" 
+                                    data-rating-value="${starValue}"
+                                    onclick="handleItemStarClick(this, ${item.menu_item_id || item.id}, ${starValue})">
+                                    ★
+                                </button>
+                            `).join('')}
+                        </div>
                     </div>
                 `).join('');
             })
             .catch(error => {
                 console.error('載入訂單項目失敗:', error);
+                const container = document.getElementById('order-items-list');
+                if(container) container.innerHTML = '<p class="text-red-500">載入訂單項目失敗，請稍後再試。</p>';
+                const mainFeedbackButton = document.getElementById('main-feedback-button');
+                if(mainFeedbackButton) mainFeedbackButton.disabled = true;
             });
+    }
+
+    function handleItemStarClick(buttonElement, menuId, ratingValue) {
+        const starContainer = document.getElementById(`stars-for-item-${menuId}`);
+        const buttons = starContainer.querySelectorAll('.star-button');
+        buttons.forEach(btn => {
+            if (parseInt(btn.dataset.ratingValue) <= ratingValue) {
+                btn.classList.remove('text-gray-300');
+                btn.classList.add('text-yellow-400');
+            } else {
+                btn.classList.remove('text-yellow-400');
+                btn.classList.add('text-gray-300');
+            }
+        });
+        submitRating(menuId, ratingValue);
+    }
+
+    async function submitRating(menuId, ratingValue) {
+        try {
+            console.log(`正在為商品 ${menuId} 提交評分 ${ratingValue}`);
+            const response = await axios.post('/api/submit-rating/', {
+                menu_id: menuId,
+                rating: ratingValue
+            });
+            
+            if (response.data.success) {
+                const starContainer = document.getElementById(`stars-for-item-${menuId}`);
+                if (starContainer) {
+                    const buttons = starContainer.querySelectorAll('.star-button');
+                    buttons.forEach(btn => btn.disabled = true);
+                    let feedbackMsg = starContainer.querySelector('.rating-feedback-msg');
+                    if (!feedbackMsg) {
+                        feedbackMsg = document.createElement('span');
+                        feedbackMsg.className = 'text-sm text-green-600 ml-2 rating-feedback-msg';
+                        starContainer.appendChild(feedbackMsg);
+                    }
+                    feedbackMsg.textContent = '感謝您的評分！';
+                }
+                
+                if (!hasRatedAnyItem) {
+                    hasRatedAnyItem = true;
+                    const mainFeedbackButton = document.getElementById('main-feedback-button');
+                    if (mainFeedbackButton) {
+                        mainFeedbackButton.disabled = false;
+                        mainFeedbackButton.classList.remove('opacity-50', 'cursor-not-allowed');
+                    }
+                }
+            } else {
+                alert('商品評分提交失敗：' + response.data.error);
+            }
+        } catch (error) {
+            console.error('提交商品評分時發生錯誤:', error);
+            alert('商品評分提交失敗，請稍後再試');
+        }
     }
 
     function loadCoupons() {
@@ -192,19 +255,35 @@
     }
 
     document.addEventListener('DOMContentLoaded', () => {
-        loadOrderItems();
-        loadCoupons();
-        renderStars();
+        const mainFeedbackButton = document.getElementById('main-feedback-button'); // 直接用ID獲取
+        if (mainFeedbackButton) {
+            mainFeedbackButton.disabled = true;
+            mainFeedbackButton.classList.add('opacity-50', 'cursor-not-allowed');
+        }
+
+        if (!orderId) {
+            alert('未指定訂單 ID，無法評價。');
+            document.getElementById('order-items-section').innerHTML = '<p class="text-red-500">錯誤：未提供訂單ID。</p>';
+            document.getElementById('feedback-section').classList.add('hidden');
+            document.getElementById('coupon-section').classList.add('hidden');
+            return;
+        }
 
         axios.get(`/api/orders/${orderId}/`)
             .then(response => {
                 if (response.data.status !== '完成') {
-                    alert('訂單尚未完成，無法評價');
-                    window.location.href = '/page5_order_status/?order_id=' + orderId;
+                    alert('訂單尚未完成，無法評價。');
+                    window.location.href = `/page5_order_status/?order_id=${orderId}`;
+                } else {
+                    loadOrderItems();
+                    loadCoupons();
+                    // renderStars(); // 不再需要調用
                 }
             })
             .catch(error => {
                 console.error('檢查訂單狀態失敗:', error);
+                alert('檢查訂單狀態失敗，請稍後再試。');
+                if (mainFeedbackButton) mainFeedbackButton.disabled = true;
             });
     });
 </script>

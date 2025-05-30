@@ -10,11 +10,12 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.db import transaction, connection
+from django.db.models import Avg, Count
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
 
 # 專案模型與序列化器導入
-from .models import UserProfile, Feedback, Coupon, MenuItem, Order, OrderItem
+from .models import UserProfile, Feedback, Coupon, MenuItem, Order, OrderItem, MenuRating
 from .serializers import MenuItemSerializer, CouponSerializer
 
 # REST Framework 相關導入
@@ -289,10 +290,11 @@ def get_order_detail(request, order_id):
             'total_price': order.total_price,
             'created_at': order.created_at,
             'status': order.status,
-            'coupon_type': getattr(getattr(order, 'coupon', None), 'coupon_type', None),  # 安全取得折價券資訊
+            'coupon_type': getattr(getattr(order, 'coupon', None), 'coupon_type', None),
             'coupon_code': getattr(getattr(order, 'coupon', None), 'code', None),
             'items': [
                 {
+                    'menu_item_id': item.menu_item.id, # <--- 新增這一行
                     'name': item.menu_item.name,
                     'quantity': item.quantity,
                     'price': item.price
@@ -483,24 +485,32 @@ def submit_feedback(request):
         return Response({'error': '請先登入'}, status=401)
 
     order_id = request.data.get('order_id')
-    rating = request.data.get('rating')
-    discount = request.data.get('discount', 0)  # 接收前端傳來的折價券金額
+    # rating = request.data.get('rating') # 不再強制要求 rating
+    discount = request.data.get('discount', 0)
 
     try:
-        order = Order.objects.get(order_id=order_id, status='完成')
+        order = Order.objects.get(order_id=order_id, user=request.user, status='完成') # 確保是該用戶的訂單
 
-        # 檢查是否已評價過
+        # 檢查是否已抽獎過 (可以基於 Feedback 模型，或者新增一個 Order 的欄位標記是否已抽獎)
+        # 這裡假設 Feedback 模型也代表了抽獎行為的完成
         if Feedback.objects.filter(order=order, user=request.user).exists():
-            return Response({'error': '您已評價過此訂單'}, status=400)
+            # 如果允許重複抽獎或只更新，則調整此邏輯
+            # 如果不允許重複提交 feedback 來抽獎，可以返回錯誤
+            # return Response({'error': '您已參與過此訂單的抽獎活動'}, status=400)
+            # 或者，如果 feedback 只是記錄，而抽獎是獨立的，則此檢查可能不適用於阻止抽獎
+            pass # 暫時允許，但您可能需要更精確的邏輯來防止重複抽獎
 
-        # 儲存評價
-        feedback = Feedback.objects.create(
+        # 創建 Feedback 記錄 (即使沒有整體評分，也可能想記錄一次抽獎行為)
+        # 如果 Feedback 模型嚴格要求 rating，您可能需要調整模型或傳遞一個預設值/null
+        Feedback.objects.update_or_create(
             user=request.user,
             order=order,
-            rating=rating
+            defaults={
+                # 'rating': rating, # 如果 rating 字段允許 null 或有預設值
+                # 如果 Feedback 模型不再需要 rating，則移除此行
+            }
         )
 
-        # 如果不是銘謝惠顧才產生折價券
         if discount > 0:
             coupon = Coupon.objects.create(
                 user=request.user,
@@ -514,14 +524,17 @@ def submit_feedback(request):
                 'discount': discount
             })
         else:
-            # 銘謝惠顧不產生折價券
             return Response({
                 'success': True,
-                'discount': 0
+                'discount': 0,
+                'message': '銘謝惠顧' # 可以給一個更明確的訊息
             })
 
     except Order.DoesNotExist:
-        return Response({'error': '訂單不存在或尚未完成'}, status=404)
+        return Response({'error': '訂單不存在、非您本人或尚未完成'}, status=404)
+    except Exception as e:
+        logger.error(f"Feedback submission/draw error for order {order_id}: {str(e)}")
+        return Response({'error': '處理抽獎請求時發生錯誤'}, status=500)
 
 
 @api_view(['GET'])
@@ -537,12 +550,55 @@ def get_user_coupons(request):
     )
     return Response(CouponSerializer(coupons, many=True).data)
 
+@csrf_exempt
+def submit_rating(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            menu_id = data.get('menu_id')
+            rating_value = data.get('rating') # 變數名改為 rating_value 以免與模型字段混淆
+
+            if not menu_id or rating_value is None:
+                return JsonResponse({'success': False, 'error': '缺少 menu_id 或 rating'}, status=400)
+
+            if not request.session.session_key:
+                request.session.create()
+            user_session = request.session.session_key
+
+            menu_item_instance = MenuItem.objects.get(id=menu_id) # 確保是 MenuItem
+
+            rating_obj, created = MenuRating.objects.update_or_create(
+                menu_item=menu_item_instance,
+                user_session=user_session,
+                defaults={'rating': rating_value}
+            )
+            logger.info(f"評分已保存或更新: {rating_obj} (Created: {created})") # 添加日誌
+            return JsonResponse({'success': True, 'message': '評分已保存'})
+        except MenuItem.DoesNotExist:
+            logger.error(f"提交評分失敗: 找不到 ID 為 {menu_id} 的 MenuItem")
+            return JsonResponse({'success': False, 'error': '找不到指定的菜單項目'}, status=404)
+        except Exception as e:
+            logger.error(f"提交評分時發生未預期錯誤: {str(e)}")
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)
+    return JsonResponse({'success': False, 'error': '無效的請求方法'}, status=405)
 
 @api_view(['GET'])
 def get_menu_ratings(request):
-    """獲取餐點平均評分"""
-    from django.db.models import Avg
-    ratings = MenuItem.objects.annotate(
-        avg_rating=Avg('orderitem__order__feedback__rating')
-    ).values('id', 'name', 'avg_rating')
-    return Response(ratings)
+    try:
+        # 使用 MenuItem 而不是 Menu
+        menu_items = MenuItem.objects.annotate(
+            avg_rating=Avg('ratings__rating'),
+            rating_count=Count('ratings')
+        ).values('id', 'name', 'avg_rating', 'rating_count')
+        
+        ratings_data = {}
+        for item in menu_items:
+            ratings_data[item['id']] = {
+                'avg_rating': round(item['avg_rating'], 1) if item['avg_rating'] else 0,
+                'rating_count': item['rating_count'] or 0
+            }
+        
+        return JsonResponse(ratings_data)
+    except Exception as e:
+        print(f"獲取評分數據錯誤: {e}")
+        return JsonResponse({})

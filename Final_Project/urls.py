@@ -47,6 +47,7 @@ urlpatterns = [
     path('api/submit-feedback/', views.submit_feedback, name='submit_feedback'),  # 重要：確保這行存在
     path('api/get-coupons/', views.get_user_coupons, name='get_user_coupons'),
     path('api/menu-ratings/', views.get_menu_ratings, name='get_menu_ratings'),
+    path('api/submit-rating/', views.submit_rating, name='submit_rating'),
     
     # 管理後台登入路由（公開訪問）
     path('admin_dashboard/login/', admin_dashboard_login, name='admin_dashboard_login'),
@@ -58,7 +59,6 @@ urlpatterns = [
     path('page6_feedback/', views.page6_feedback, name='page6_feedback'),
     path('api/submit-feedback/', views.submit_feedback, name='submit_feedback'),
     path('api/get-coupons/', views.get_user_coupons, name='get_coupons'),
-    path('api/menu-ratings/', views.get_menu_ratings, name='menu_ratings'),
 ]
 
 # 在開發環境中提供媒體文件服務
