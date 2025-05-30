@@ -45,14 +45,23 @@ def login_view(request):
     if request.method == 'POST':
         username = request.POST.get('username')
         password = request.POST.get('password')
+        next_url = request.POST.get('next', None) # 從 POST 獲取 next (如果表單有) 或從 GET
+        if not next_url:
+            next_url = request.GET.get('next', None)
+
 
         user = authenticate(request, username=username, password=password)
         if user is not None:
             login(request, user)
-            return redirect('page1')
+            if next_url: # 如果有 next 參數，跳轉到該 URL
+                return redirect(next_url)
+            return redirect('page1') # 預設跳轉到 page1
         else:
-            return render(request, 'page0_login.html', {'error_message': '用戶名或密碼不正確'})
-    return redirect('page0')
+            return render(request, 'page0_login.html', {'error_message': '用戶名或密碼不正確', 'next': next_url})
+    
+    # 如果是 GET 請求，也傳遞 next 參數給模板
+    next_url_get = request.GET.get('next', '')
+    return render(request, 'page0_login.html', {'next': next_url_get}) # 修改這裡，確保 GET 請求也能渲染登入頁
 
 
 def register_view(request):
@@ -283,6 +292,11 @@ def get_order_detail(request, order_id):
     order = get_object_or_404(Order, order_id=order_id)
 
     if request.method == 'GET':
+        has_participated = False
+        # 只有在用戶已登入的情況下才檢查是否已參與抽獎
+        if request.user.is_authenticated:
+            has_participated = Feedback.objects.filter(order=order, user=request.user).exists()
+        
         data = {
             'order_id': str(order.order_id),
             'sequence_number': order.sequence_number,
@@ -292,9 +306,10 @@ def get_order_detail(request, order_id):
             'status': order.status,
             'coupon_type': getattr(getattr(order, 'coupon', None), 'coupon_type', None),
             'coupon_code': getattr(getattr(order, 'coupon', None), 'code', None),
+            'has_participated_in_draw': has_participated, # 新增此欄位
             'items': [
                 {
-                    'menu_item_id': item.menu_item.id, # <--- 新增這一行
+                    'menu_item_id': item.menu_item.id, 
                     'name': item.menu_item.name,
                     'quantity': item.quantity,
                     'price': item.price
@@ -485,29 +500,36 @@ def submit_feedback(request):
         return Response({'error': '請先登入'}, status=401)
 
     order_id = request.data.get('order_id')
-    # rating = request.data.get('rating') # 不再強制要求 rating
     discount = request.data.get('discount', 0)
 
     try:
-        order = Order.objects.get(order_id=order_id, user=request.user, status='完成') # 確保是該用戶的訂單
+        # 嘗試找到訂單，訂單必須是 '完成' 狀態
+        # 它可以屬於當前登入的用戶，或者是一個匿名訂單
+        possible_orders_query = Order.objects.filter(order_id=order_id, status='完成')
+        
+        order = possible_orders_query.filter(user=request.user).first()
+        
+        if not order:
+            # 如果找不到屬於當前用戶的訂單，則檢查是否為匿名訂單
+            order = possible_orders_query.filter(user__isnull=True).first()
+        
+        if not order:
+            # 如果仍然找不到訂單，則表示訂單不存在或不符合條件
+            raise Order.DoesNotExist
 
-        # 檢查是否已抽獎過 (可以基於 Feedback 模型，或者新增一個 Order 的欄位標記是否已抽獎)
-        # 這裡假設 Feedback 模型也代表了抽獎行為的完成
+        # 檢查此用戶是否已對此訂單提交過回饋 (參與過抽獎)
         if Feedback.objects.filter(order=order, user=request.user).exists():
-            # 如果允許重複抽獎或只更新，則調整此邏輯
-            # 如果不允許重複提交 feedback 來抽獎，可以返回錯誤
-            # return Response({'error': '您已參與過此訂單的抽獎活動'}, status=400)
-            # 或者，如果 feedback 只是記錄，而抽獎是獨立的，則此檢查可能不適用於阻止抽獎
+            # 此處可以根據您的業務邏輯決定是否允許重複抽獎或提示已參與
+            # 目前的程式碼是 pass，即允許繼續執行 (可能導致重複創建 Feedback 或 Coupon)
+            # 如果不允許重複，應返回錯誤：
+            # return Response({'error': '您已參與過此訂單的抽獎活動'}, status=status.HTTP_400_BAD_REQUEST)
             pass # 暫時允許，但您可能需要更精確的邏輯來防止重複抽獎
 
-        # 創建 Feedback 記錄 (即使沒有整體評分，也可能想記錄一次抽獎行為)
-        # 如果 Feedback 模型嚴格要求 rating，您可能需要調整模型或傳遞一個預設值/null
         Feedback.objects.update_or_create(
             user=request.user,
             order=order,
             defaults={
                 # 'rating': rating, # 如果 rating 字段允許 null 或有預設值
-                # 如果 Feedback 模型不再需要 rating，則移除此行
             }
         )
 
@@ -527,14 +549,14 @@ def submit_feedback(request):
             return Response({
                 'success': True,
                 'discount': 0,
-                'message': '銘謝惠顧' # 可以給一個更明確的訊息
+                'message': '銘謝惠顧'
             })
 
     except Order.DoesNotExist:
-        return Response({'error': '訂單不存在、非您本人或尚未完成'}, status=404)
+        return Response({'error': '訂單不存在、非您本人或尚未完成'}, status=status.HTTP_404_NOT_FOUND)
     except Exception as e:
         logger.error(f"Feedback submission/draw error for order {order_id}: {str(e)}")
-        return Response({'error': '處理抽獎請求時發生錯誤'}, status=500)
+        return Response({'error': '處理抽獎請求時發生錯誤'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['GET'])
