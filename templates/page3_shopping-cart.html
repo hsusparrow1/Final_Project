@@ -14,20 +14,24 @@
                 font-size: 0.9rem !important;
             }
 
+
             /* 調整商品卡片 */
             .product-card {
                 padding: 1rem !important;
             }
+
 
             /* 調整商品名稱字體 */
             .product-name {
                 font-size: 1.1rem !important;
             }
 
+
             /* 調整價格字體 */
             .product-price {
                 font-size: 1.2rem !important;
             }
+
 
             /* 調整底部結帳欄 */
             .checkout-bar {
@@ -38,14 +42,18 @@
 </head>
 <body class="bg-gray-900 text-white">
 
+
 <div id="root"></div>
+
 
 <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
+
 <script type="text/babel">
     const {useState, useEffect} = React;
+
 
     function ShoppingCart() {
         const [cartItems, setCartItems] = useState([]);
@@ -53,10 +61,12 @@
         const [coupons, setCoupons] = useState([]);
         const [selectedCoupon, setSelectedCoupon] = useState(null);
 
+
         const syncCartData = async () => {
             try {
                 const serverResponse = await axios.get('/api/get-cart/');
                 const serverCart = serverResponse.data.items || [];
+
 
                 const mergedCart = serverCart.reduce((acc, serverItem) => {
                     const existingItem = acc.find(i => i.id === serverItem.id);
@@ -68,10 +78,12 @@
                         : [...acc, serverItem];
                 }, JSON.parse(sessionStorage.getItem('cartItems')) || []);
 
+
                 // 過濾有效項目並按價格排序 (從高到低)
                 const validCart = mergedCart
                     .filter(item => item.count > 0)
                     .sort((a, b) => a.price - b.price);  // 修改這裡，改為按價格排序
+
 
                 setCartItems(validCart);
                 sessionStorage.setItem('cartItems', JSON.stringify(validCart));
@@ -83,30 +95,37 @@
             }
         };
 
+
         useEffect(() => {
             const handleBeforeUnload = async () => {
                 await axios.post('/api/save-cart/', {items: cartItems});
                 sessionStorage.setItem('cartItems', JSON.stringify(cartItems));
             };
 
+
             window.addEventListener('beforeunload', handleBeforeUnload);
             syncCartData();
             axios.get('/api/get-coupons/').then(res => setCoupons(res.data));
 
+
             return () => window.removeEventListener('beforeunload', handleBeforeUnload);
         }, []);
 
+
         const updateItemCount = async (itemId, newCount) => {
             if (newCount < 1) return;
+
 
             const updatedItems = cartItems
                 .map(item => item.id === itemId ? {...item, count: newCount} : item)
                 .filter(item => item.count > 0);
 
+
             setCartItems(updatedItems);
             sessionStorage.setItem('cartItems', JSON.stringify(updatedItems));
             axios.post('/api/save-cart/', {items: updatedItems});
         };
+
 
         const removeItem = async (itemId) => {
             const updatedItems = cartItems.filter(item => item.id !== itemId);
@@ -115,12 +134,14 @@
             await axios.post('/api/save-cart/', {items: updatedItems});
         };
 
+
         const handleBackToMenu = async () => {
             setIsSyncing(true);
             await axios.post('/api/save-cart/', {items: cartItems});
             sessionStorage.setItem('returningFromCart', 'true');
             window.location.href = '/page2_menu/';
         };
+
 
         const handleSubmitOrder = async () => {
             setIsSyncing(true);
@@ -131,6 +152,7 @@
                     items: cartItems,
                     coupon_code: selectedCoupon ? selectedCoupon.code : null
                 });
+
 
                 if (response.data.success) {
                     localStorage.removeItem('orderType');
@@ -143,6 +165,7 @@
             }
         };
 
+
         const totalCount = cartItems.reduce((sum, item) => sum + item.count, 0);
         const calculateTotal = () => {
             let total = cartItems.reduce((sum, item) => sum + (item.price * item.count), 0);
@@ -152,6 +175,7 @@
             return total.toFixed(2);
         };
 
+
         return (
             <div className="p-4 pb-32 relative">
                 {isSyncing && (
@@ -160,7 +184,9 @@
                     </div>
                 )}
 
+
                 <h1 className="text-3xl font-bold mb-6 border-b border-gray-700 pb-4">購物車明細</h1>
+
 
                 {cartItems.length === 0 ? (
                     <div className="text-center py-8 space-y-4">
@@ -180,7 +206,10 @@
                                     <div className="flex justify-between items-start mb-3">
                                         <div>
                                             <h3 className="text-xl font-semibold">{item.name}</h3>
-                                            <p className="text-gray-400 text-sm">單價: ${item.price}</p>
+                                            <p className="text-sm">
+                                                <span className="text-gray-400">單價: </span>
+                                                <span className="text-green-400">${item.price}</span>
+                                            </p>
                                         </div>
                                         <button
                                             onClick={() => removeItem(item.id)}
@@ -190,6 +219,7 @@
                                             &times;
                                         </button>
                                     </div>
+
 
                                     <div className="flex justify-between items-center">
                                         <div className="flex items-center space-x-3">
@@ -215,12 +245,14 @@
                             ))}
                         </div>
 
+
                         <div
                             className="fixed bottom-0 left-0 right-0 bg-gray-800 p-4 shadow-2xl border-t border-gray-700">
                             <div className="flex justify-between items-center mb-3 text-lg">
                                 <span>商品數量</span>
                                 <span className="font-bold">{totalCount} 項</span>
                             </div>
+
 
                             <div className="border-t border-gray-700 pt-3 mt-3">
                                 <div className="flex items-center justify-between mb-2">
@@ -244,10 +276,12 @@
                                 )}
                             </div>
 
+
                             <div className="flex justify-between items-center mb-4 text-xl">
                                 <span>折扣後總金額</span>
                                 <span className="font-bold text-green-400">${calculateTotal()}</span>
                             </div>
+
 
                             <div className="grid grid-cols-2 gap-3">
                                 <button
@@ -270,8 +304,10 @@
         );
     }
 
+
     ReactDOM.createRoot(document.getElementById('root')).render(<ShoppingCart/>);
 </script>
+
 
 <style>
     @keyframes fade-in {
@@ -285,9 +321,11 @@
         }
     }
 
+
     .animate-fade-in {
         animation: fade-in 0.3s ease-out;
     }
 </style>
 </body>
 </html>
+

@@ -6,34 +6,56 @@
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <meta name="csrf-token" content="{{ csrf_token }}">
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        /* 與登入頁面相同的響應式設定 */
+        html {
+            font-size: 16px;
+        }
+
+        @media (max-width: 640px) {
+            html {
+                font-size: 18px;
+            }
+        }
+
+        .star-button {
+            transition: all 0.2s ease;
+        }
+
+        .star-button:hover {
+            transform: scale(1.2);
+        }
+    </style>
 </head>
-<body class="bg-gray-100 min-h-screen">
+<body class="bg-gray-900 min-h-screen">
 <div class="container mx-auto px-4 py-8 max-w-md">
+    <!-- 標題 - 與登入頁面一致 -->
+    <h1 class="text-4xl font-bold text-center py-6 text-white">想吃什麼ㄅㄠˇ？</h1>
+
     <!-- 訂單項目顯示區 -->
-    <div id="order-items-section" class="bg-white rounded-lg shadow-md p-6 mb-6">
-        <h2 class="text-xl font-bold mb-4">您的訂單內容 (請為商品評分以參與抽獎)</h2>
-        <div id="order-items-list" class="space-y-2"></div>
+    <div id="order-items-section" class="bg-gray-800 rounded-lg shadow-md p-6 mb-6 border border-gray-700">
+        <h2 class="text-xl font-bold mb-4 text-white">您的訂單內容 (請為商品評分以參與抽獎)</h2>
+        <div id="order-items-list" class="space-y-2 text-gray-300"></div>
     </div>
 
-    <!-- 抽獎按鈕區 (原評價區簡化) -->
-    <div id="feedback-section" class="bg-white rounded-lg shadow-md p-6 mb-6">
-        <h1 class="text-2xl font-bold mb-4 text-center">完成商品評價並抽獎</h1>
-        <!-- 移除了訂單整體評價的星星 -->
+    <!-- 抽獎按鈕區 -->
+    <div id="feedback-section" class="bg-gray-800 rounded-lg shadow-md p-6 mb-6 border border-gray-700">
+        <h1 class="text-2xl font-bold mb-4 text-center text-white">完成商品評價並抽獎</h1>
         <button id="main-feedback-button" onclick="submitFeedback()"
-                class="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg font-bold">
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-bold transition-colors">
             參與抽獎
         </button>
     </div>
 
     <!-- 中獎結果顯示區 -->
-    <div id="result-section" class="hidden bg-white rounded-lg shadow-md p-6 mb-6">
-        <h2 class="text-2xl font-bold mb-4 text-center">抽獎結果</h2>
+    <div id="result-section" class="hidden bg-gray-800 rounded-lg shadow-md p-6 mb-6 border border-gray-700">
+        <h2 class="text-2xl font-bold mb-4 text-center text-white">抽獎結果</h2>
         <div id="result" class="text-center text-xl font-bold"></div>
     </div>
 
     <!-- 折價券顯示區 -->
-    <div id="coupon-section" class="bg-white rounded-lg shadow-md p-6">
-        <h2 class="text-2xl font-bold mb-4">我的折價券</h2>
+    <div id="coupon-section" class="bg-gray-800 rounded-lg shadow-md p-6 border border-gray-700">
+        <h2 class="text-2xl font-bold mb-4 text-white">我的折價券</h2>
         <div id="coupons-list" class="space-y-3"></div>
     </div>
 </div>
@@ -42,7 +64,7 @@
     axios.defaults.headers.common['X-CSRFToken'] = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 
     let orderId = new URLSearchParams(window.location.search).get('order_id');
-    let hasRatedAnyItem = false; // 保持全局變數
+    let hasRatedAnyItem = false;
 
     const prizes = [
         {text: '銘謝惠顧', discount: 0, chance: 40},
@@ -53,7 +75,6 @@
     ];
 
     function redirectToLogin() {
-        // 導向到 login_view 處理的路徑, 即 /login/
         window.location.href = `/login/?next=${encodeURIComponent(window.location.pathname + window.location.search)}`;
     }
 
@@ -71,7 +92,7 @@
             document.getElementById('result-section').classList.remove('hidden');
 
             document.getElementById('result').innerHTML = `
-                <div class="p-4 rounded-lg ${discount > 0 ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}">
+                <div class="p-4 rounded-lg ${discount > 0 ? 'bg-blue-900 text-blue-100 border border-blue-700' : 'bg-gray-700 text-gray-300 border border-gray-600'}">
                     🎉 恭喜獲得: <strong>${selectedPrize.text}</strong> 🎉
                 </div>
             `;
@@ -84,7 +105,6 @@
             if (response.data.success || response.status === 201 || response.status === 200) {
                 // 抽獎成功
             } else {
-                // 雖然成功響應，但後端標記為錯誤
                 alert(response.data.error || '抽獎請求處理異常。');
                 document.getElementById('feedback-section').classList.remove('hidden');
                 document.getElementById('result-section').classList.add('hidden');
@@ -95,10 +115,10 @@
         } catch (error) {
             console.error('提交抽獎請求失敗:', error);
             if (error.response) {
-                if (error.response.status === 401) { // HTTP 401 Unauthorized
+                if (error.response.status === 401) {
                     alert('您需要登入才能參與抽獎。將為您導向登入頁面。');
                     redirectToLogin();
-                    return; // 避免執行後續代碼
+                    return;
                 } else if (error.response.data && error.response.data.error) {
                     alert('抽獎失敗：' + error.response.data.error);
                 } else {
@@ -121,32 +141,27 @@
                 return prizes[i];
             }
         }
-        return prizes[0]; // Default prize
+        return prizes[0];
     }
 
     function updateMainFeedbackButtonState() {
         const mainFeedbackButton = document.getElementById('main-feedback-button');
         if (!mainFeedbackButton) return;
 
-        // 檢查訂單是否已抽獎 (這個狀態應該從 orderData 中獲取)
-        // 假設我們有一個變數來存儲訂單是否已抽獎
-        const orderAlreadyDrawn = mainFeedbackButton.textContent === '此訂單已抽獎'; // 簡易判斷
+        const orderAlreadyDrawn = mainFeedbackButton.textContent === '此訂單已抽獎';
 
         if (orderAlreadyDrawn) {
             mainFeedbackButton.disabled = true;
-            mainFeedbackButton.classList.add('opacity-50', 'cursor-not-allowed', 'bg-gray-400');
-            mainFeedbackButton.classList.remove('bg-blue-500', 'hover:bg-blue-600');
+            mainFeedbackButton.classList.add('opacity-50', 'cursor-not-allowed', 'bg-gray-600');
+            mainFeedbackButton.classList.remove('bg-blue-600', 'hover:bg-blue-700');
         } else if (hasRatedAnyItem) {
             mainFeedbackButton.disabled = false;
             mainFeedbackButton.classList.remove('opacity-50', 'cursor-not-allowed');
-            // 可以恢復按鈕的原始樣式，如果之前被修改過
-            mainFeedbackButton.classList.add('bg-blue-500', 'hover:bg-blue-600');
-            mainFeedbackButton.classList.remove('bg-gray-400');
+            mainFeedbackButton.classList.add('bg-blue-600', 'hover:bg-blue-700');
+            mainFeedbackButton.classList.remove('bg-gray-600');
         } else {
             mainFeedbackButton.disabled = true;
             mainFeedbackButton.classList.add('opacity-50', 'cursor-not-allowed');
-            // 如果需要，可以確保它是預設的禁用樣式
-            // mainFeedbackButton.classList.add('bg-blue-500'); // 或者保持其當前顏色但禁用
         }
     }
 
@@ -155,42 +170,38 @@
             .then(response => {
                 const order = response.data;
                 const container = document.getElementById('order-items-list');
-                const mainFeedbackButton = document.getElementById('main-feedback-button'); // 獲取按鈕引用
-
-                // 重置 hasRatedAnyItem，因為我們要根據當前訂單重新判斷
-                // hasRatedAnyItem = false; // 這一行可能不需要，因為全局變數在頁面加載時已經是 false
+                const mainFeedbackButton = document.getElementById('main-feedback-button');
 
                 if (order.has_participated_in_draw) {
-                    if(mainFeedbackButton) {
+                    if (mainFeedbackButton) {
                         mainFeedbackButton.disabled = true;
                         mainFeedbackButton.textContent = '此訂單已抽獎';
-                        mainFeedbackButton.classList.add('opacity-50', 'cursor-not-allowed', 'bg-gray-400');
-                        mainFeedbackButton.classList.remove('bg-blue-500', 'hover:bg-blue-600');
+                        mainFeedbackButton.classList.add('opacity-50', 'cursor-not-allowed', 'bg-gray-600');
+                        mainFeedbackButton.classList.remove('bg-blue-600', 'hover:bg-blue-700');
                     }
                     document.getElementById('feedback-section').querySelector('h1').textContent = '抽獎活動已完成';
-                    container.innerHTML = '<p class="text-gray-500">此訂單已參與過抽獎活動，感謝您的評價。</p>';
-                    updateMainFeedbackButtonState(); // 更新按鈕狀態
+                    container.innerHTML = '<p class="text-gray-400">此訂單已參與過抽獎活動，感謝您的評價。</p>';
+                    updateMainFeedbackButtonState();
                     return;
                 }
 
                 if (!order.items || order.items.length === 0) {
-                    container.innerHTML = '<p class="text-gray-500">此訂單沒有商品可供評價。</p>';
-                    if(mainFeedbackButton) mainFeedbackButton.disabled = true;
-                    updateMainFeedbackButtonState(); // 更新按鈕狀態
+                    container.innerHTML = '<p class="text-gray-400">此訂單沒有商品可供評價。</p>';
+                    if (mainFeedbackButton) mainFeedbackButton.disabled = true;
+                    updateMainFeedbackButtonState();
                     return;
                 }
 
-                // 渲染商品列表
                 container.innerHTML = order.items.map((item, index) => `
-                    <div class="py-3 border-b border-gray-200">
+                    <div class="py-3 border-b border-gray-700">
                         <div class="flex justify-between items-center mb-2">
-                            <span class="font-semibold">${item.name} (x${item.quantity})</span>
-                            <span>$${item.price}</span>
+                            <span class="font-semibold text-gray-300">${item.name} (x${item.quantity})</span>
+                            <span class="text-gray-300">$${item.price}</span>
                         </div>
                         <div class="flex items-center space-x-1" id="stars-for-item-${item.menu_item_id || item.id}">
                             ${[1, 2, 3, 4, 5].map(starValue => `
                                 <button
-                                    class="text-3xl text-gray-300 hover:text-yellow-400 focus:outline-none star-button"
+                                    class="text-3xl text-gray-500 hover:text-yellow-400 focus:outline-none star-button transition-colors"
                                     data-menu-id="${item.menu_item_id || item.id}"
                                     data-rating-value="${starValue}"
                                     onclick="handleItemStarClick(this, ${item.menu_item_id || item.id}, ${starValue})">
@@ -201,29 +212,20 @@
                     </div>
                 `).join('');
 
-                // 假設：如果 loadOrderItems 成功執行到這裡，並且訂單未抽獎且有商品，
-                // 我們需要一個方法來檢查是否已經有評價。
-                // 由於 MenuRating 是基於 user_session，前端無法直接知道登入用戶是否已評價。
-                // 為了簡化，我們依賴於用戶再次點擊評價。
-                // 如果您有一個 API 可以獲取當前用戶對這些商品的評價，可以在這裡調用並更新 hasRatedAnyItem。
-                // 例如:
-                // checkIfAnyItemRatedAndUpdateButton(order.items);
-
-                updateMainFeedbackButtonState(); // 初始更新一次按鈕狀態
+                updateMainFeedbackButtonState();
             })
             .catch(error => {
                 console.error('載入訂單項目失敗:', error);
                 if (error.response && error.response.status === 401) {
-                     // 雖然 get_order_detail 目前不強制登入，但以防萬一
                     alert('您需要登入才能查看訂單詳情並評價。將為您導向登入頁面。');
                     redirectToLogin();
                 } else {
                     const container = document.getElementById('order-items-list');
-                    if(container) container.innerHTML = '<p class="text-red-500">載入訂單項目失敗，請稍後再試。</p>';
+                    if (container) container.innerHTML = '<p class="text-red-400">載入訂單項目失敗，請稍後再試。</p>';
                     const mainFeedbackButton = document.getElementById('main-feedback-button');
-                    if(mainFeedbackButton) mainFeedbackButton.disabled = true;
+                    if (mainFeedbackButton) mainFeedbackButton.disabled = true;
                 }
-                updateMainFeedbackButtonState(); // 錯誤情況下也更新按鈕狀態
+                updateMainFeedbackButtonState();
             });
     }
 
@@ -232,11 +234,11 @@
         const buttons = starContainer.querySelectorAll('.star-button');
         buttons.forEach(btn => {
             if (parseInt(btn.dataset.ratingValue) <= ratingValue) {
-                btn.classList.remove('text-gray-300');
+                btn.classList.remove('text-gray-500');
                 btn.classList.add('text-yellow-400');
             } else {
                 btn.classList.remove('text-yellow-400');
-                btn.classList.add('text-gray-300');
+                btn.classList.add('text-gray-500');
             }
         });
         submitRating(menuId, ratingValue);
@@ -252,11 +254,10 @@
             if (response.data.success) {
                 const starContainer = document.getElementById(`stars-for-item-${menuId}`);
                 if (starContainer) {
-                    // buttons.forEach(btn => btn.disabled = true); // 允許重複評價
                     let feedbackMsg = starContainer.querySelector('.rating-feedback-msg');
                     if (!feedbackMsg) {
                         feedbackMsg = document.createElement('span');
-                        feedbackMsg.className = 'text-sm text-green-600 ml-2 rating-feedback-msg';
+                        feedbackMsg.className = 'text-sm text-green-400 ml-2 rating-feedback-msg';
                         starContainer.appendChild(feedbackMsg);
                     }
                     feedbackMsg.textContent = '感謝您的評分！';
@@ -265,9 +266,8 @@
                     }, 3000);
                 }
 
-                // 關鍵：只要有任何一次成功的評分提交，就設置 hasRatedAnyItem 為 true
                 hasRatedAnyItem = true;
-                updateMainFeedbackButtonState(); // 每次成功評分後都更新按鈕狀態
+                updateMainFeedbackButtonState();
 
             } else {
                 alert('商品評分提交失敗：' + (response.data.error || '未知錯誤'));
@@ -275,7 +275,6 @@
         } catch (error) {
             console.error('提交商品評分時發生錯誤:', error);
             if (error.response && error.response.status === 401) {
-                // 如果 /api/submit-rating/ 也需要登入
                 alert('您需要登入才能提交商品評分。將為您導向登入頁面。');
                 redirectToLogin();
             } else {
@@ -285,19 +284,19 @@
     }
 
     function loadCoupons() {
-        axios.get('/api/get-coupons/') // 後端 get_user_coupons 已有登入檢查
+        axios.get('/api/get-coupons/')
             .then(response => {
                 const container = document.getElementById('coupons-list');
                 if (response.data.length === 0) {
-                    container.innerHTML = '<p class="text-gray-500">您目前沒有可用的折價券</p>';
+                    container.innerHTML = '<p class="text-gray-400">您目前沒有可用的折價券</p>';
                 } else {
                     container.innerHTML = response.data.map(coupon => `
                         <div class="p-3 rounded-lg border ${getCouponColor(coupon.coupon_type)}">
                             <div class="flex justify-between items-center">
-                                <span class="font-bold">${getCouponText(coupon.coupon_type)}</span>
-                                <span class="text-sm">到期: ${new Date(coupon.valid_until).toLocaleDateString()}</span>
+                                <span class="font-bold ${getCouponTextColor(coupon.coupon_type)}">${getCouponText(coupon.coupon_type)}</span>
+                                <span class="text-sm text-gray-400">到期: ${new Date(coupon.valid_until).toLocaleDateString()}</span>
                             </div>
-                            <div class="mt-1 text-sm">代碼: ${coupon.code}</div>
+                            <div class="mt-1 text-sm text-gray-300">代碼: ${coupon.code}</div>
                         </div>
                     `).join('');
                 }
@@ -306,24 +305,28 @@
                 console.error('載入折價券失敗:', error);
                 if (error.response && error.response.status === 401) {
                     const container = document.getElementById('coupons-list');
-                    // 修改這裡的連結，確保它也指向 /login/
-                    container.innerHTML = '<p class="text-gray-500">請<a href="/login/?next=' + encodeURIComponent(window.location.pathname + window.location.search) + '" class="text-blue-500 hover:underline">登入</a>以查看您的折價券。</p>';
+                    container.innerHTML = '<p class="text-gray-400">請<a href="/login/?next=' + encodeURIComponent(window.location.pathname + window.location.search) + '" class="text-blue-400 hover:underline">登入</a>以查看您的折價券。</p>';
                 } else {
                     const container = document.getElementById('coupons-list');
-                    container.innerHTML = '<p class="text-red-500">載入折價券失敗，請稍後再試。</p>';
+                    container.innerHTML = '<p class="text-red-400">載入折價券失敗，請稍後再試。</p>';
                 }
             });
     }
 
     function getCouponColor(type) {
+        return 'bg-green-800 border-green-600';
+    }
+
+
+    function getCouponTextColor(type) {
         const colors = {
-            '10': 'bg-green-100 border-green-300',
-            '20': 'bg-green-200 border-green-400',
-            '30': 'bg-green-300 border-green-500',
-            '100': 'bg-yellow-100 border-yellow-300',
-            '0': 'bg-gray-100 border-gray-300'
+            '10': 'text-blue-300',
+            '20': 'text-blue-200',
+            '30': 'text-blue-100',
+            '100': 'text-yellow-300',
+            '0': 'text-gray-400'
         };
-        return colors[type] || 'bg-gray-100';
+        return colors[type] || 'text-gray-300';
     }
 
     function getCouponText(type) {
@@ -338,16 +341,9 @@
     }
 
     document.addEventListener('DOMContentLoaded', () => {
-        // const mainFeedbackButton = document.getElementById('main-feedback-button');
-        // if (mainFeedbackButton) {
-        //     mainFeedbackButton.disabled = true; // 初始禁用
-        //     mainFeedbackButton.classList.add('opacity-50', 'cursor-not-allowed');
-        // }
-        // 初始的按鈕狀態將由 updateMainFeedbackButtonState 在 loadOrderItems 完成後處理
-
         if (!orderId) {
             alert('未指定訂單 ID，無法評價。');
-            document.getElementById('order-items-section').innerHTML = '<p class="text-red-500">錯誤：未提供訂單ID。</p>';
+            document.getElementById('order-items-section').innerHTML = '<p class="text-red-400">錯誤：未提供訂單ID。</p>';
             document.getElementById('feedback-section').classList.add('hidden');
             document.getElementById('coupon-section').classList.add('hidden');
             return;
@@ -362,7 +358,6 @@
                 } else {
                     loadOrderItems();
                     loadCoupons();
-                    // 按鈕狀態的更新現在主要由 loadOrderItems 內部調用 updateMainFeedbackButtonState() 控制
                 }
             })
             .catch(error => {

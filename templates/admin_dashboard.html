@@ -12,6 +12,7 @@
 <div class="container mx-auto p-4">
     <h1 class="text-3xl font-bold mb-4">店家管理介面</h1>
 
+
     <!-- 分頁按鈕 -->
     <div class="flex space-x-4 mb-6">
         <button id="orders-tab" class="px-6 py-3 text-lg rounded-full bg-white text-black font-semibold"
@@ -22,10 +23,12 @@
         </button>
     </div>
 
+
     <!-- 訂單管理 -->
     <div id="orders-section" class="hidden">
         <h2 class="text-2xl font-bold mt-6">現有訂單</h2>
         <div id="current-orders" class="space-y-4"></div>
+
 
         <div class="flex items-center justify-between mt-6">
             <h2 class="text-2xl font-bold">歷史訂單</h2>
@@ -37,9 +40,11 @@
         <div id="completed-orders" class="space-y-4 mt-2"></div>
     </div>
 
+
     <!-- 商品管理 -->
     <div id="menu-section" class="hidden">
         <h2 class="text-2xl font-bold mt-6">商品管理</h2>
+
 
         <!-- 新增商品 -->
         <form id="add-menu-item-form" class="bg-gray-800 p-4 rounded-lg space-y-4 mb-6">
@@ -78,9 +83,11 @@
             </button>
         </form>
 
+
         <div id="menu-items" class="grid grid-cols-2 gap-4"></div>
     </div>
 </div>
+
 
 <script>
     // 獲取 CSRF Token
@@ -94,19 +101,23 @@
             }
         }
 
+
         // 如果 cookie 中沒有，嘗試從 meta 標籤獲取
         const tokenElement = document.querySelector('meta[name="csrf-token"]');
         if (tokenElement) {
             return tokenElement.getAttribute('content');
         }
 
+
         // 兩種方式都找不到，提示錯誤
         console.error('無法獲取 CSRF Token!');
         return '';
     }
 
+
     // 設置 Axios 默認的 CSRF Token
     axios.defaults.headers.common['X-CSRFToken'] = getCSRFToken();
+
 
     // 顯示對應的分頁
     function showTab(tab) {
@@ -114,6 +125,7 @@
         const menuTab = document.getElementById('menu-tab');
         const ordersSection = document.getElementById('orders-section');
         const menuSection = document.getElementById('menu-section');
+
 
         if (tab === 'orders') {
             ordersTab.classList.add('bg-white', 'text-black');
@@ -132,18 +144,23 @@
         }
     }
 
+
     // 預設顯示訂單管理
     showTab('orders');
+
 
     async function fetchOrders() {
         const response = await axios.get('/api/orders/');
         const orders = response.data;
 
+
         console.log('訂單數據:', orders);
+
 
         // 分類訂單
         const currentOrders = orders.filter(order => order.status === '已送單' || order.status === '製作中');
         const completedOrders = orders.filter(order => order.status === '完成');
+
 
         // 格式化時間的函數
         function formatDateTime(isoString) {
@@ -159,63 +176,67 @@
             });
         }
 
+
         // 渲染現有訂單
         const currentOrdersDiv = document.getElementById('current-orders');
         currentOrdersDiv.innerHTML = currentOrders.map(order => `
-            <div class="bg-gray-800 p-4 rounded-lg">
-                <p><strong>流水號：</strong>${order.sequence_number}</p>
-                <p><strong>建立時間：</strong>${formatDateTime(order.created_at)}</p>
-                <p><strong>類型：</strong>${order.order_type}</p>
-                <p><strong>狀態：</strong>${order.status || '未知'}</p>
-                <p><strong>餐點內容：</strong>${order.items.map(item => `${item.name}x${item.quantity}`).join('、')}</p>
-                <p><strong>總價：</strong>${order.total_price}</p>
-                <p><strong>訂單編號：</strong>${order.order_id}</p>
-                <div class="mt-2 space-x-2">
-                    ${order.status === '已送單' ? `
-                        <button class="bg-yellow-500 px-4 py-2 rounded" onclick="updateOrderStatus('${order.order_id}', '製作中')">標記為製作中</button>
-                    ` : ''}
-                    ${order.status === '製作中' ? `
-                        <button class="bg-green-500 px-4 py-2 rounded" onclick="updateOrderStatus('${order.order_id}', '完成')">標記為完成</button>
-                    ` : ''}
-                    <button class="bg-red-500 px-4 py-2 rounded" onclick="confirmDeleteOrder('${order.order_id}')">刪除訂單</button>
-                </div>
-            </div>
-        `).join('');
+           <div class="bg-gray-800 p-4 rounded-lg">
+               <p><strong>流水號：</strong>${order.sequence_number}</p>
+               <p><strong>建立時間：</strong>${formatDateTime(order.created_at)}</p>
+               <p><strong>類型：</strong>${order.order_type}</p>
+               <p><strong>狀態：</strong>${order.status || '未知'}</p>
+               <p><strong>餐點內容：</strong>${order.items.map(item => `${item.name}x${item.quantity}`).join('、')}</p>
+               <p><strong>總價：</strong>${order.total_price}</p>
+               <p><strong>訂單編號：</strong>${order.order_id}</p>
+               <div class="mt-2 space-x-2">
+                   ${order.status === '已送單' ? `
+                       <button class="bg-yellow-500 px-4 py-2 rounded" onclick="updateOrderStatus('${order.order_id}', '製作中')">標記為製作中</button>
+                   ` : ''}
+                   ${order.status === '製作中' ? `
+                       <button class="bg-green-500 px-4 py-2 rounded" onclick="updateOrderStatus('${order.order_id}', '完成')">標記為完成</button>
+                   ` : ''}
+                   <button class="bg-red-500 px-4 py-2 rounded" onclick="confirmDeleteOrder('${order.order_id}')">刪除訂單</button>
+               </div>
+           </div>
+       `).join('');
+
 
         // 渲染歷史訂單
         const completedOrdersDiv = document.getElementById('completed-orders');
         completedOrdersDiv.innerHTML = completedOrders.map(order => `
-            <div class="bg-gray-800 p-4 rounded-lg">
-                <p><strong>流水號：</strong>${order.sequence_number}</p>
-                <p><strong>建立時間：</strong>${formatDateTime(order.created_at)}</p>
-                <p><strong>類型：</strong>${order.order_type}</p>
-                <p><strong>狀態：</strong>${order.status || '未知'}</p>
-                <p><strong>餐點內容：</strong>${order.items.map(item => `${item.name}x${item.quantity}`).join('、')}</p>
-                <p><strong>總價：</strong>${order.total_price}</p>
-                <p><strong>訂單編號：</strong>${order.order_id}</p>
-            </div>
-        `).join('');
+           <div class="bg-gray-800 p-4 rounded-lg">
+               <p><strong>流水號：</strong>${order.sequence_number}</p>
+               <p><strong>建立時間：</strong>${formatDateTime(order.created_at)}</p>
+               <p><strong>類型：</strong>${order.order_type}</p>
+               <p><strong>狀態：</strong>${order.status || '未知'}</p>
+               <p><strong>餐點內容：</strong>${order.items.map(item => `${item.name}x${item.quantity}`).join('、')}</p>
+               <p><strong>總價：</strong>${order.total_price}</p>
+               <p><strong>訂單編號：</strong>${order.order_id}</p>
+           </div>
+       `).join('');
     }
+
 
     async function fetchMenuItems() {
         const response = await axios.get('/api/menu/');
         const items = response.data;
         const menuItemsDiv = document.getElementById('menu-items');
         menuItemsDiv.innerHTML = items.map(item => `
-            <div class="bg-gray-800 p-4 rounded-lg">
-                <p><strong>名稱：</strong>${item.name}</p>
-                <p><strong>價格：</strong>${item.price}</p>
-                <p><strong>狀態：</strong>${item.sold_out ? '已售完' : '可販售'}</p>
-                <p><strong>會員專區：</strong>${item.member_only ? '是' : '否'}</p>
-                <button
-                    class="${item.sold_out ? 'bg-green-500' : 'bg-red-500'} px-4 py-2 rounded mt-2"
-                    onclick="updateMenuItemStatus(${item.id}, ${!item.sold_out})">
-                    ${item.sold_out ? '標記為可販售' : '標記為已售完'}
-                </button>
-                <button class="bg-red-500 px-4 py-2 rounded mt-2" onclick="confirmDeleteMenuItem(${item.id})">刪除商品</button>
-            </div>
-        `).join('');
+           <div class="bg-gray-800 p-4 rounded-lg">
+               <p><strong>名稱：</strong>${item.name}</p>
+               <p><strong>價格：</strong>${item.price}</p>
+               <p><strong>狀態：</strong>${item.sold_out ? '已售完' : '可販售'}</p>
+               <p><strong>會員專區：</strong>${item.member_only ? '是' : '否'}</p>
+               <button
+                   class="${item.sold_out ? 'bg-green-500' : 'bg-red-500'} px-4 py-2 rounded mt-2"
+                   onclick="updateMenuItemStatus(${item.id}, ${!item.sold_out})">
+                   ${item.sold_out ? '標記為可販售' : '標記為已售完'}
+               </button>
+               <button class="bg-red-500 px-4 py-2 rounded mt-2" onclick="confirmDeleteMenuItem(${item.id})">刪除商品</button>
+           </div>
+       `).join('');
     }
+
 
     async function updateMenuItemStatus(itemId, soldOut) {
         try {
@@ -228,6 +249,7 @@
         }
     }
 
+
     async function updateOrderStatus(orderId, status) {
         try {
             await axios.post(`/api/orders/${orderId}/status/`, {status});
@@ -239,12 +261,14 @@
         }
     }
 
+
     // 確認刪除單一訂單
     function confirmDeleteOrder(orderId) {
         if (confirm('確定要刪除此訂單嗎？此操作無法復原！')) {
             deleteOrder(orderId);
         }
     }
+
 
     // 刪除單一訂單
     async function deleteOrder(orderId) {
@@ -256,6 +280,7 @@
                 }
             });
 
+
             if (response.data.success || response.data.message) {
                 alert('訂單已成功刪除');
                 fetchOrders();
@@ -265,6 +290,7 @@
         } catch (error) {
             console.error('刪除訂單時發生錯誤:', error);
             let errorMessage = '刪除訂單失敗';
+
 
             if (error.response) {
                 errorMessage += `: ${error.response.status}`;
@@ -276,12 +302,14 @@
         }
     }
 
+
     // 確認刪除全部歷史訂單
     function confirmDeleteAllCompletedOrders() {
         if (confirm('確定要刪除所有歷史訂單嗎？此操作無法復原！')) {
             deleteAllCompletedOrders();
         }
     }
+
 
     // 刪除全部歷史訂單
     async function deleteAllCompletedOrders() {
@@ -300,6 +328,7 @@
         }
     }
 
+
     // 確認刪除商品
     function confirmDeleteMenuItem(itemId) {
         if (confirm('確定要刪除此商品嗎？此操作無法復原！')) {
@@ -307,11 +336,13 @@
         }
     }
 
+
     async function addMenuItem() {
         const category = document.getElementById('category').value;
         const name = document.getElementById('name').value;
         const price = document.getElementById('price').value;
         const memberOnly = document.getElementById('member-only').checked;
+
 
         try {
             await axios.post('/api/menu/', {category, name, price, member_only: memberOnly});
@@ -322,6 +353,7 @@
             alert('新增商品失敗，請稍後再試。');
         }
     }
+
 
     async function deleteMenuItem(itemId) {
         try {
@@ -334,12 +366,14 @@
         }
     }
 
+
     // 頁面載入時先抓一次
     fetchOrders();
     fetchMenuItems();
 
-    // 每10秒自動刷新訂單
-    setInterval(fetchOrders, 10000);
+
+    // 每1秒自動刷新訂單
+    setInterval(fetchOrders, 1000);
 </script>
 <div class="fixed bottom-4 right-4">
     <a href="{% url 'logout' %}?next=/admin_dashboard_login/"
